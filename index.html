@@ -4,7 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=login4" />
+  <style>
+    #appShell{display:none!important}
+    #loginScreen{display:grid!important}
+    body.authenticated #appShell{display:block!important}
+    body.authenticated #loginScreen{display:none!important}
+  </style>
 </head>
 <body>
   <div id="loginScreen" class="login-screen">
@@ -31,7 +37,7 @@
     </div>
   </div>
 
-  <div id="appShell" class="app-shell hidden">
+  <div id="appShell" class="app-shell">
     <header class="topbar">
       <div>
         <h1>Aventura Turismo</h1>
@@ -139,7 +145,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js"></script>
-  <script src="./app.js"></script>
+  <script src="./auth.js?v=login4"></script>
+  <script src="./app.js?v=login4"></script>
 </body>
 </html>
