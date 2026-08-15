@@ -12,6 +12,7 @@
   const $ = id => document.getElementById(id);
 
   function showLogin(msg=""){
+    document.body.classList.remove("authenticated");
     $("loginScreen")?.classList.remove("hidden");
     $("appShell")?.classList.add("hidden");
     if($("loginError")){
@@ -21,6 +22,7 @@
   }
 
   function showApp(){
+    document.body.classList.add("authenticated");
     $("loginScreen")?.classList.add("hidden");
     $("appShell")?.classList.remove("hidden");
   }
@@ -150,6 +152,71 @@
     const {error}=await window.sb.from("user_profiles").update({active:value,updated_at:new Date().toISOString()}).eq("id",uid);
     if(error) alert("Não foi possível alterar.");
     await loadUsers();
+  };
+
+
+  window.toggleCreateUser=function(show){
+    if(window.currentProfile?.role!=="MASTER") return;
+    const panel=$("createUserPanel");
+    if(!panel) return;
+    panel.classList.toggle("hidden",!show);
+    if(show) $("newUserName")?.focus();
+    else {
+      $("createUserForm")?.reset();
+      const dash=document.querySelector('[data-new-perm="dashboard"]');
+      if(dash) dash.checked=true;
+      if($("createUserMessage")) $("createUserMessage").textContent="";
+    }
+  };
+
+  window.createSystemUser=async function(event){
+    event?.preventDefault();
+    if(window.currentProfile?.role!=="MASTER") return;
+
+    const name=$("newUserName")?.value.trim();
+    const email=$("newUserEmail")?.value.trim().toLowerCase();
+    const password=$("newUserPassword")?.value || "";
+    const msg=$("createUserMessage");
+    const btn=$("createUserBtn");
+
+    if(!name || !email || password.length<6){
+      if(msg) msg.textContent="Preencha nome, e-mail e uma senha com pelo menos 6 caracteres.";
+      return;
+    }
+
+    const permissions={};
+    document.querySelectorAll("[data-new-perm]").forEach(el=>{
+      permissions[el.dataset.newPerm]=el.checked;
+    });
+
+    if(btn){btn.disabled=true;btn.textContent="Criando...";}
+    if(msg) msg.textContent="Criando usuário...";
+
+    try{
+      const {data,error}=await window.sb.functions.invoke("admin-create-user",{
+        body:{full_name:name,email,password,permissions}
+      });
+      if(error) throw error;
+      if(!data?.ok) throw new Error(data?.error || "Não foi possível criar o usuário.");
+
+      if(msg) msg.textContent="Usuário criado com sucesso.";
+      $("createUserForm")?.reset();
+      const dash=document.querySelector('[data-new-perm="dashboard"]');
+      if(dash) dash.checked=true;
+      await loadUsers();
+      setTimeout(()=>toggleCreateUser(false),700);
+    }catch(err){
+      let detail=err?.message || "Erro ao criar usuário.";
+      try{
+        if(err?.context){
+          const body=await err.context.json();
+          detail=body?.error || detail;
+        }
+      }catch(_){}
+      if(msg) msg.textContent=detail;
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent="Criar usuário";}
+    }
   };
 
   window.addEventListener("DOMContentLoaded",init);

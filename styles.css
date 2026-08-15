@@ -7,3 +7,25 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
 .login-screen{min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 15% 10%,rgba(122,55,229,.35),transparent 28%),linear-gradient(140deg,#140d1d,#27163b 55%,#17101f)}.login-card{width:min(470px,100%);background:#fff;border-radius:26px;padding:30px;box-shadow:0 35px 100px rgba(0,0,0,.35)}.login-brand{display:flex;gap:16px;align-items:center;margin-bottom:26px}.login-logo{min-width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#5520b0,#8d5af0);color:#fff;font-weight:950;font-size:22px}.login-brand h1{margin:3px 0;font-size:28px}.login-brand p{margin:0;color:var(--muted)}.login-form{display:grid;gap:15px}.login-form label{display:grid;gap:7px;font-size:13px;font-weight:800;color:#4f5360}.login-form input{padding:14px;border:1px solid var(--line);border-radius:12px;outline:none}.login-form input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(108,43,217,.1)}.login-submit{padding:14px}.login-error{padding:11px 13px;background:#fff1f1;color:#a72e2e;border-radius:10px;font-size:13px;font-weight:700}.login-foot{display:block;text-align:center;color:var(--muted);margin-top:18px}
 .access-help{display:grid;gap:4px;padding:14px;background:#f7f3fd;border-radius:12px;margin-bottom:15px}.access-help span{color:var(--muted);font-size:13px}.users-access-list{display:grid;gap:14px}.user-access-card{border:1px solid var(--line);border-radius:16px;padding:17px}.user-access-head{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:14px}.user-access-head strong{display:block;font-size:17px}.user-access-head small{display:block;color:var(--muted);margin-top:3px}.user-access-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.permissions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.permission-switch,.active-toggle{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:11px;padding:10px 11px;font-size:13px;font-weight:700;background:#fff}.permission-switch input,.active-toggle input{accent-color:var(--brand);width:17px;height:17px}.disabled-switch{opacity:.65;background:#f7f7f9}
 @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.tabs-grid{grid-template-columns:repeat(2,1fr)}.stock-grid{grid-template-columns:repeat(2,1fr)}.product-picker{grid-template-columns:repeat(2,1fr)}.permissions-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.topbar{padding:18px;align-items:flex-start;flex-direction:column}.top-actions{width:100%}main{padding:16px}.hero{align-items:flex-start;flex-direction:column;gap:20px}.hero-total{text-align:left}.cards,.tabs-grid,.stock-grid,.form-grid,.permissions-grid{grid-template-columns:1fr}.user-access-head{align-items:flex-start;flex-direction:column}}
+
+
+/* Usuários - criação pelo painel MASTER */
+.user-toolbar{display:flex;gap:10px;align-items:center}
+.create-user-panel{margin-bottom:18px}
+.create-user-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+.create-user-head>div{display:flex;flex-direction:column;gap:4px}
+.create-user-head strong{font-size:18px}
+.create-user-head span{font-size:13px;color:var(--muted)}
+.icon-btn{border:0;background:transparent;font-size:26px;cursor:pointer;line-height:1}
+.user-form-grid{display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:14px}
+.user-form-grid label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:700}
+.user-form-grid input{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;box-sizing:border-box}
+.new-user-permissions{margin-top:18px}
+.new-user-permissions>strong{display:block;margin-bottom:10px}
+.form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.form-message{min-height:20px;margin-top:10px;font-size:13px;font-weight:700}
+@media(max-width:850px){
+  .user-form-grid{grid-template-columns:1fr}
+  .section-head{align-items:flex-start}
+  .user-toolbar{width:100%;flex-wrap:wrap}
+}
