@@ -29,3 +29,14 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .section-head{align-items:flex-start}
   .user-toolbar{width:100%;flex-wrap:wrap}
 }
+
+/* Prévia BAR / COZINHA */
+.print-preview-note{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border-radius:14px;background:#f4efff;margin-bottom:16px}
+.print-preview-note span{font-size:13px;color:var(--muted)}
+.print-preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.print-preview-ticket,.print-preview-empty{border:1px dashed #8c7aa8;border-radius:14px;padding:18px;background:#fff;min-height:220px;display:flex;flex-direction:column;gap:6px}
+.print-preview-sector{font-size:20px;font-weight:900;text-align:center;margin-bottom:6px}
+.print-preview-ticket hr{border:0;border-top:1px dashed #aaa;width:100%;margin:8px 0}
+.print-item{display:grid;grid-template-columns:42px 1fr;gap:8px;font-size:16px;padding:4px 0}
+.print-preview-empty{align-items:center;justify-content:center;color:var(--muted)}
+@media(max-width:760px){.print-preview-grid{grid-template-columns:1fr}}

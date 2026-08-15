@@ -20,7 +20,70 @@ let state=JSON.parse(localStorage.getItem('aventura_pdv')||'null')||defaults;
 let currentTabId=null;
 let cart=[];
 
-function save(){localStorage.setItem('aventura_pdv',JSON.stringify(state));renderAll();}
+let cloudReady=false;
+let savingCloud=false;
+let pendingCloudSave=false;
+let realtimeChannel=null;
+
+function save(){
+  localStorage.setItem('aventura_pdv',JSON.stringify(state));
+  renderAll();
+  if(cloudReady) saveCloudState();
+}
+
+async function saveCloudState(){
+  if(!window.sb || !window.currentProfile) return;
+  if(savingCloud){ pendingCloudSave=true; return; }
+  savingCloud=true;
+  try{
+    const payload={id:1,state,updated_at:new Date().toISOString(),updated_by:window.currentProfile.id};
+    const {error}=await window.sb.from('app_state').upsert(payload,{onConflict:'id'});
+    if(error) console.error('Erro ao sincronizar:',error);
+  }finally{
+    savingCloud=false;
+    if(pendingCloudSave){ pendingCloudSave=false; saveCloudState(); }
+  }
+}
+
+async function loadCloudState(){
+  if(!window.sb || !window.currentProfile) return;
+  const {data,error}=await window.sb.from('app_state').select('state').eq('id',1).maybeSingle();
+  if(error){ console.error(error); alert('Não foi possível carregar os dados compartilhados.'); return; }
+
+  if(data?.state){
+    state=data.state;
+    localStorage.setItem('aventura_pdv',JSON.stringify(state));
+  }else{
+    // Na primeira ativação, envia os dados que já existiam neste computador.
+    const {error:upErr}=await window.sb.from('app_state').insert({
+      id:1,state,updated_at:new Date().toISOString(),updated_by:window.currentProfile.id
+    });
+    if(upErr) console.error(upErr);
+  }
+  cloudReady=true;
+  renderAll();
+  startRealtimeSync();
+}
+
+function startRealtimeSync(){
+  if(realtimeChannel || !window.sb) return;
+  realtimeChannel=window.sb.channel('aventura-global-sync')
+    .on('postgres_changes',
+      {event:'*',schema:'public',table:'app_state',filter:'id=eq.1'},
+      payload=>{
+        const remote=payload.new?.state;
+        if(!remote) return;
+        state=remote;
+        localStorage.setItem('aventura_pdv',JSON.stringify(state));
+        renderAll();
+        // Se uma comanda estiver aberta, atualiza a tela dela também.
+        if(currentTabId && !document.getElementById('modal')?.classList.contains('hidden')){
+          const exists=state.tabs.some(t=>t.id===currentTabId);
+          if(exists) renderTabModal();
+        }
+      })
+    .subscribe();
+}
 
 window.showView=function(name){
   const btn=document.querySelector(`.tab[data-view="${name}"]`);
@@ -71,19 +134,58 @@ window.removeCart=i=>{cart.splice(i,1);renderTabModal();};
 
 window.sendOrder=async function(){
   if(!cart.length)return;
-  for(const line of cart){const p=state.products.find(x=>x.id===line.productId);if(p&&p.stock<line.qty)return alert(`Estoque insuficiente: ${p.name}`);}
-  const order={id:id(),tabId:currentTabId,items:structuredClone(cart),total:cart.reduce((s,l)=>s+l.qty*l.price,0),createdAt:new Date().toISOString(),status:'ENVIADO'};
-  state.orders.push(order);cart.forEach(line=>{const p=state.products.find(x=>x.id===line.productId);if(p)p.stock-=line.qty;});
-  await printOrderBySector(order);save();cart=[];renderTabModal();
+  for(const line of cart){
+    const p=state.products.find(x=>x.id===line.productId);
+    if(p&&p.stock<line.qty)return alert(`Estoque insuficiente: ${p.name}`);
+  }
+  const order={
+    id:id(),tabId:currentTabId,items:structuredClone(cart),
+    total:cart.reduce((s,l)=>s+l.qty*l.price,0),
+    createdAt:new Date().toISOString(),status:'ENVIADO',
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Usuário'
+  };
+  state.orders.push(order);
+  cart.forEach(line=>{
+    const p=state.products.find(x=>x.id===line.productId);
+    if(p)p.stock-=line.qty;
+  });
+  save();
+  cart=[];
+  showPrintPreview(order);
 };
 
-async function printOrderBySector(order){
+function receiptHtml(sector,items,tab,order){
+  if(!items.length) return '';
+  return `<div class="print-preview-ticket">
+    <div class="print-preview-sector">${sector}</div>
+    <strong>${state.settings.company}</strong>
+    <span>${state.settings.boat}</span>
+    <hr>
+    <strong>COMANDA ${tab.number}</strong>
+    <span>${tab.customer||'Passageiro'}</span>
+    <span>${new Date(order.createdAt).toLocaleString('pt-BR')}</span>
+    <hr>
+    ${items.map(i=>`<div class="print-item"><b>${i.qty}x</b><span>${i.name}</span></div>`).join('')}
+    <hr>
+    <small>Lançado por: ${order.createdByName||'Usuário'}</small>
+  </div>`;
+}
+
+function showPrintPreview(order){
   const tab=state.tabs.find(t=>t.id===order.tabId);
-  for(const sector of ['BAR','COZINHA']){
-    const items=order.items.filter(i=>i.sector===sector);if(!items.length)continue;
-    const payload={sector,company:state.settings.company,boat:state.settings.boat,tab:tab.number,customer:tab.customer,createdAt:order.createdAt,items};
-    try{await fetch(`${state.settings.printBridge}/print`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}catch(e){}
-  }
+  const bar=order.items.filter(i=>i.sector==='BAR');
+  const cozinha=order.items.filter(i=>i.sector==='COZINHA');
+  openModal('Divisão para impressão',
+    `<div class="print-preview-note"><strong>PRÉVIA DE IMPRESSÃO</strong><span>As impressoras estão desativadas por enquanto. Esta é exatamente a divisão que será enviada futuramente.</span></div>
+     <div class="print-preview-grid">
+       ${bar.length?receiptHtml('BAR',bar,tab,order):'<div class="print-preview-empty"><strong>BAR</strong><span>Nenhum item para o bar.</span></div>'}
+       ${cozinha.length?receiptHtml('COZINHA',cozinha,tab,order):'<div class="print-preview-empty"><strong>COZINHA</strong><span>Nenhum item para a cozinha.</span></div>'}
+     </div>
+     <div class="checkout">
+       <button class="ghost" onclick="renderTabModal()">Voltar para a comanda</button>
+       <button class="primary" onclick="closeModal()">Concluir</button>
+     </div>`);
 }
 
 window.closeTab=function(){
@@ -122,7 +224,7 @@ window.saveSettings=function(){
   save();alert('Configurações salvas.');
 };
 
-window.testPrinter=async sector=>{try{await fetch(`${state.settings.printBridge}/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sector})});alert(`Teste enviado para ${sector}.`);}catch{alert('Print Bridge não encontrado.');}};
+window.testPrinter=sector=>alert(`Impressão física desativada por enquanto. Os pedidos de ${sector} continuarão sendo separados e exibidos na prévia.`);
 
 function renderAll(){
   if(!document.getElementById('todayLabel'))return;
@@ -144,4 +246,8 @@ function renderAll(){
 }
 
 window.addEventListener('DOMContentLoaded',()=>{wireTabs();document.getElementById('btnOpenModal').onclick=()=>openNewTabModal();renderAll();});
-window.addEventListener('aventura-auth-ready',()=>{document.getElementById('connectionStatus').textContent='Supabase conectado';renderAll();});
+window.addEventListener('aventura-auth-ready',async()=>{
+  document.getElementById('connectionStatus').textContent='Sincronizando...';
+  await loadCloudState();
+  document.getElementById('connectionStatus').textContent='Supabase • sincronizado';
+});
