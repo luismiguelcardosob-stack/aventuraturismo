@@ -1,4 +1,4 @@
 window.AVENTURA_SUPABASE = {
-  url: "https://SEU-PROJETO.supabase.co",
-  anonKey: "SUA_CHAVE_ANON_PUBLICA"
+  url: "https://hfnvgvuaqyvbfvuvoarq.supabase.co",
+  anonKey: "sb_publishable_MFxW7_irJ2CpylWwH4RY2w_RNgdEKLH"
 };
