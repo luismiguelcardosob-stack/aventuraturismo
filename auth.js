@@ -12,7 +12,6 @@
   const $ = id => document.getElementById(id);
 
   function showLogin(msg=""){
-    document.body.classList.remove("authenticated");
     $("loginScreen")?.classList.remove("hidden");
     $("appShell")?.classList.add("hidden");
     if($("loginError")){
@@ -22,7 +21,6 @@
   }
 
   function showApp(){
-    document.body.classList.add("authenticated");
     $("loginScreen")?.classList.add("hidden");
     $("appShell")?.classList.remove("hidden");
   }
