@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=fees22" />
+  <link rel="stylesheet" href="./styles.css?v=vouchers24" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -99,6 +99,7 @@
     <nav class="tabs">
       <button class="tab active" data-view="dashboard" data-permission="dashboard">Painel</button>
       <button class="tab" data-view="comandas" data-permission="comandas">Comandas</button>
+      <button class="tab" data-view="vouchers" data-permission="vouchers">Vouchers</button>
       <button class="tab" data-view="produtos" data-permission="produtos">Produtos</button>
       <button class="tab" data-view="estoque" data-permission="estoque">Estoque</button>
       <button class="tab" data-view="caixa" data-permission="caixa">Caixa</button>
@@ -128,6 +129,35 @@
       <section id="comandas" class="view">
         <div class="section-head"><div><span class="eyebrow">ATENDIMENTO</span><h2>Comandas</h2></div><button class="primary" onclick="openNewTabModal()">+ Nova comanda</button></div>
         <div id="tabsGrid" class="tabs-grid"></div>
+      </section>
+
+      <section id="vouchers" class="view">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">AGÊNCIA / EMBARQUE</span>
+            <h2>Vouchers</h2>
+            <p class="muted">Cadastre vouchers, confira saldos e inicie a comanda do barco somente após o acerto da passagem.</p>
+          </div>
+          <button class="primary" onclick="openVoucherManual()">+ Voucher manual</button>
+        </div>
+
+        <div class="voucher-upload-panel panel">
+          <div>
+            <strong>Lançar voucher em PDF</strong>
+            <small>Selecione o voucher. O sistema tentará preencher automaticamente nome, data, passageiros, saída, embarque, agente e valores.</small>
+          </div>
+          <label class="voucher-upload-btn">
+            Selecionar PDF
+            <input type="file" accept="application/pdf,.pdf" onchange="handleVoucherUpload(this)">
+          </label>
+          <div id="voucherUploadStatus" class="voucher-upload-status"></div>
+        </div>
+
+        <div class="voucher-search-panel">
+          <input id="voucherSearch" placeholder="Pesquisar por nome, nº do voucher, agente ou data..." oninput="searchVouchers()">
+        </div>
+
+        <div id="vouchersList" class="vouchers-list"></div>
       </section>
 
       <section id="produtos" class="view">
@@ -239,6 +269,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./supabase-config.js"></script>
   <script src="./auth.js?v=roles20"></script>
-  <script src="./app.js?v=reportfix23"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="./app.js?v=vouchers24"></script>
 </body>
 </html>

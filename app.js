@@ -43,11 +43,13 @@ const MENU_PRODUCTS=[
 const defaults={
   menuVersion:MENU_VERSION,
   products:structuredClone(MENU_PRODUCTS),
-  tabs:[],orders:[],payments:[],
+  tabs:[],orders:[],payments:[],vouchers:[],voucherPayments:[],
   settings:{company:'Aventura Turismo',boat:'Capitão Gancho',printBridge:'http://localhost:8787'}
 };
 
 let state=JSON.parse(localStorage.getItem('aventura_pdv')||'null')||defaults;
+state.vouchers=Array.isArray(state.vouchers)?state.vouchers:[];
+state.voucherPayments=Array.isArray(state.voucherPayments)?state.voucherPayments:[];
 let currentTabId=null;
 let cart=[];
 let lastSentOrderId=null;
@@ -92,6 +94,8 @@ async function loadCloudState(){
 
   if(data?.state){
     state=data.state;
+    state.vouchers=Array.isArray(state.vouchers)?state.vouchers:[];
+    state.voucherPayments=Array.isArray(state.voucherPayments)?state.voucherPayments:[];
 
     // Atualiza o catálogo para o cardápio oficial sem apagar comandas/pedidos antigos.
     if(state.menuVersion!==MENU_VERSION){
@@ -1645,6 +1649,473 @@ window.downloadDailyReport=function(){
   doc.save(`relatorio-${safeBoat}-${d.today}.pdf`);
 };
 
+
+function voucherMoney(v){
+  return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+
+function parseVoucherNumber(text){
+  const m=text.match(/#\s*(\d{2,})/i);
+  return m?m[1]:'';
+}
+
+function parseVoucherField(text,label,nextLabels=[]){
+  const escaped=label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const next=nextLabels.length
+    ? `(?=\\s+(?:${nextLabels.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')})\\b|$)`
+    : '$';
+  const re=new RegExp(`${escaped}\\s+(.+?)${next}`,'i');
+  const m=text.match(re);
+  return m?m[1].trim():'';
+}
+
+function parseMoneyValue(raw){
+  if(!raw) return 0;
+  let s=String(raw).replace(/[^\d,.-]/g,'').trim();
+  if(s.includes(',') && s.includes('.')){
+    s=s.replace(/\./g,'').replace(',','.');
+  }else if(s.includes(',')){
+    s=s.replace(',','.');
+  }
+  const n=Number(s);
+  return Number.isFinite(n)?n:0;
+}
+
+async function extractVoucherFromPdf(file){
+  if(!window.pdfjsLib) throw new Error('Leitor de PDF não carregado.');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+  const buffer=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buffer}).promise;
+  let full='';
+
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const content=await page.getTextContent();
+    full+=' '+content.items.map(i=>i.str).join(' ');
+  }
+
+  const text=full.replace(/\s+/g,' ').trim();
+
+  const voucherNumber=parseVoucherNumber(text);
+  const name=parseVoucherField(text,'NOME',['CONTATO','DATA','PASSAGEIROS','SAÍDA','SAIDA']);
+  const contact=parseVoucherField(text,'CONTATO',['DATA','PASSAGEIROS']);
+  const date=parseVoucherField(text,'DATA',['PASSAGEIROS','SAÍDA','SAIDA']);
+  const passengersRaw=parseVoucherField(text,'PASSAGEIROS',['SAÍDA','SAIDA','EMBARQUE']);
+  const departure=parseVoucherField(text,text.includes('SAÍDA')?'SAÍDA':'SAIDA',['EMBARQUE']);
+  const embarkation=parseVoucherField(text,'EMBARQUE',['AGENTE','TOTAL']);
+  const agent=parseVoucherField(text,'AGENTE',['TOTAL']);
+
+  const totalMatch=text.match(/TOTAL\s+R\$\s*([\d.,]+)/i);
+  const paidMatch=text.match(/PAGO\s+R\$\s*([\d.,]+)/i);
+  const dueMatch=text.match(/A\s+PAGAR\s+R\$\s*([\d.,]+)/i);
+
+  const passengersMatch=passengersRaw.match(/(\d+)/);
+
+  return {
+    voucherNumber,
+    name,
+    contact,
+    date,
+    passengers:passengersMatch?Number(passengersMatch[1]):1,
+    departure,
+    embarkation,
+    agent,
+    total:parseMoneyValue(totalMatch?.[1]),
+    paid:parseMoneyValue(paidMatch?.[1]),
+    due:parseMoneyValue(dueMatch?.[1]),
+    sourceFileName:file.name
+  };
+}
+
+window.handleVoucherUpload=async function(input){
+  const file=input.files?.[0];
+  if(!file) return;
+
+  const status=document.getElementById('voucherUploadStatus');
+  if(status){
+    status.className='voucher-upload-status';
+    status.textContent='Lendo voucher...';
+  }
+
+  try{
+    const data=await extractVoucherFromPdf(file);
+    openVoucherReview(data);
+
+    if(status){
+      status.className='voucher-upload-status ok';
+      status.textContent='Voucher lido. Confira os dados antes de salvar.';
+    }
+  }catch(err){
+    console.error(err);
+    if(status){
+      status.className='voucher-upload-status error';
+      status.textContent='Não consegui ler automaticamente. Você pode cadastrar os dados manualmente.';
+    }
+    openVoucherReview({sourceFileName:file.name});
+  }finally{
+    input.value='';
+  }
+};
+
+window.openVoucherManual=function(){
+  openVoucherReview({});
+};
+
+function openVoucherReview(v={}){
+  openModal('Cadastrar voucher',`
+    <div class="voucher-form">
+      <div class="voucher-form-grid">
+        <label>Nº do voucher<input id="voucherNumber" value="${escHtml(v.voucherNumber||'')}" placeholder="Ex.: 1304"></label>
+        <label>Nome do passageiro<input id="voucherName" value="${escHtml(v.name||'')}" placeholder="Nome completo"></label>
+        <label>Contato<input id="voucherContact" value="${escHtml(v.contact||'')}" placeholder="Telefone / WhatsApp"></label>
+        <label>Data<input id="voucherDate" value="${escHtml(v.date||'')}" placeholder="dd/mm/aaaa"></label>
+        <label>Passageiros<input id="voucherPassengers" type="number" min="1" value="${Number(v.passengers||1)}"></label>
+        <label>Saída<input id="voucherDeparture" value="${escHtml(v.departure||'')}" placeholder="Ex.: 10:30h"></label>
+        <label>Embarque<input id="voucherEmbarkation" value="${escHtml(v.embarkation||'')}" placeholder="Ex.: Cais de Turismo"></label>
+        <label>Agente<input id="voucherAgent" value="${escHtml(v.agent||'')}" placeholder="Agente / parceiro"></label>
+      </div>
+
+      <div class="voucher-values-grid">
+        <label>Total da passagem
+          <div class="money-input-wrap"><span>R$</span><input id="voucherTotal" type="number" min="0" step="0.01" value="${Number(v.total||0).toFixed(2)}" oninput="recalcVoucherDue()"></div>
+        </label>
+        <label>Já pago
+          <div class="money-input-wrap"><span>R$</span><input id="voucherPaid" type="number" min="0" step="0.01" value="${Number(v.paid||0).toFixed(2)}" oninput="recalcVoucherDue()"></div>
+        </label>
+        <label>Saldo a pagar
+          <div class="money-input-wrap"><span>R$</span><input id="voucherDue" type="number" min="0" step="0.01" value="${Number(v.due||0).toFixed(2)}" readonly></div>
+        </label>
+      </div>
+
+      <div class="voucher-info-note">
+        Este saldo é da <strong>passagem/passeio</strong>. Ele não entra na conta de consumo do barco.
+        A comanda de consumo só será iniciada quando o passageiro chegar e o saldo da passagem for acertado.
+      </div>
+
+      <div class="checkout-actions">
+        <button class="ghost" onclick="closeModal()">Cancelar</button>
+        <button class="primary" onclick="saveVoucher()">Salvar voucher</button>
+      </div>
+    </div>
+  `);
+
+  recalcVoucherDue();
+}
+
+function escHtml(v){
+  return String(v??'')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+
+window.recalcVoucherDue=function(){
+  const total=Math.max(0,Number(document.getElementById('voucherTotal')?.value)||0);
+  const paid=Math.max(0,Number(document.getElementById('voucherPaid')?.value)||0);
+  const due=Math.max(0,total-paid);
+  const el=document.getElementById('voucherDue');
+  if(el) el.value=due.toFixed(2);
+};
+
+window.saveVoucher=function(){
+  const voucherNumber=document.getElementById('voucherNumber')?.value.trim();
+  const name=document.getElementById('voucherName')?.value.trim();
+  const contact=document.getElementById('voucherContact')?.value.trim();
+  const date=document.getElementById('voucherDate')?.value.trim();
+  const passengers=Number(document.getElementById('voucherPassengers')?.value)||1;
+  const departure=document.getElementById('voucherDeparture')?.value.trim();
+  const embarkation=document.getElementById('voucherEmbarkation')?.value.trim();
+  const agent=document.getElementById('voucherAgent')?.value.trim();
+  const total=Math.max(0,Number(document.getElementById('voucherTotal')?.value)||0);
+  const paid=Math.max(0,Number(document.getElementById('voucherPaid')?.value)||0);
+  const due=Math.max(0,total-paid);
+
+  if(!voucherNumber) return alert('Informe o número do voucher.');
+  if(!name) return alert('Informe o nome do passageiro.');
+  if(!date) return alert('Informe a data do passeio.');
+  if(!Number.isInteger(passengers)||passengers<=0) return alert('Informe a quantidade de passageiros.');
+
+  const duplicate=state.vouchers.some(v=>String(v.voucherNumber)===String(voucherNumber));
+  if(duplicate) return alert(`O voucher #${voucherNumber} já está cadastrado.`);
+
+  state.vouchers.push({
+    id:id(),
+    voucherNumber,
+    name,
+    contact,
+    date,
+    passengers,
+    departure,
+    embarkation,
+    agent,
+    total,
+    paid,
+    due,
+    status:due>0?'AGUARDANDO_PAGAMENTO':'PRONTO_EMBARQUE',
+    createdAt:new Date().toISOString(),
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Usuário'
+  });
+
+  save();
+  closeModal();
+  showView('vouchers');
+};
+
+window.searchVouchers=function(){
+  renderVouchers();
+};
+
+function renderVouchers(){
+  const box=document.getElementById('vouchersList');
+  if(!box) return;
+
+  const q=(document.getElementById('voucherSearch')?.value||'').trim().toLowerCase();
+
+  const list=state.vouchers
+    .slice()
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'))
+    .filter(v=>{
+      if(!q) return true;
+      return [
+        v.voucherNumber,v.name,v.contact,v.agent,v.date
+      ].some(x=>String(x||'').toLowerCase().includes(q));
+    });
+
+  if(!list.length){
+    box.innerHTML='<div class="voucher-empty">Nenhum voucher encontrado.</div>';
+    return;
+  }
+
+  box.innerHTML=list.map(v=>{
+    const paidNow=state.voucherPayments
+      .filter(p=>p.voucherId===v.id)
+      .reduce((s,p)=>s+Number(p.amount||0),0);
+
+    const remaining=Math.max(0,Number(v.due||0)-paidNow);
+    const started=Boolean(v.tabId);
+
+    let statusLabel='Aguardando pagamento';
+    if(started) statusLabel='Comanda iniciada';
+    else if(remaining<=0.005) statusLabel='Pronto para embarque';
+
+    return `<article class="voucher-card">
+      <div class="voucher-card-head">
+        <div>
+          <span class="eyebrow">VOUCHER #${escHtml(v.voucherNumber)}</span>
+          <h3>${escHtml(v.name)}</h3>
+          <p>${escHtml(v.date)} • ${v.passengers} passageiro(s) • ${escHtml(v.departure||'Horário não informado')}</p>
+        </div>
+        <span class="voucher-status ${started?'started':remaining<=0.005?'ready':'pending'}">${statusLabel}</span>
+      </div>
+
+      <div class="voucher-detail-grid">
+        <div><span>Embarque</span><strong>${escHtml(v.embarkation||'-')}</strong></div>
+        <div><span>Agente</span><strong>${escHtml(v.agent||'-')}</strong></div>
+        <div><span>Total</span><strong>${voucherMoney(v.total)}</strong></div>
+        <div><span>Pago antes</span><strong>${voucherMoney(v.paid)}</strong></div>
+        <div class="voucher-due"><span>Saldo da passagem</span><strong>${voucherMoney(remaining)}</strong></div>
+      </div>
+
+      <div class="voucher-card-actions">
+        ${started
+          ? `<button class="ghost" onclick="openTab('${v.tabId}')">Abrir comanda ${escHtml(v.tabNumber||'')}</button>`
+          : `<button class="primary" onclick="openVoucherArrival('${v.id}')">${remaining>0.005?'Receber saldo e iniciar comanda':'Iniciar comanda do barco'}</button>`
+        }
+      </div>
+    </article>`;
+  }).join('');
+}
+
+window.openVoucherArrival=function(voucherId){
+  const v=state.vouchers.find(x=>x.id===voucherId);
+  if(!v) return;
+
+  const paidNow=state.voucherPayments.filter(p=>p.voucherId===v.id).reduce((s,p)=>s+Number(p.amount||0),0);
+  const remaining=Math.max(0,Number(v.due||0)-paidNow);
+
+  openModal(`Embarque • Voucher #${v.voucherNumber}`,`
+    <div class="voucher-arrival">
+      <div class="voucher-arrival-summary">
+        <div>
+          <span class="eyebrow">PASSAGEIRO</span>
+          <h3>${escHtml(v.name)}</h3>
+          <p>${v.passengers} passageiro(s) • ${escHtml(v.departure||'')}</p>
+        </div>
+        <div class="voucher-arrival-due">
+          <span>Saldo da passagem</span>
+          <strong>${voucherMoney(remaining)}</strong>
+        </div>
+      </div>
+
+      ${remaining>0.005?`
+        <div class="mixed-payment-box">
+          <div class="mixed-payment-head">
+            <div><strong>Receber saldo do passeio</strong><small>Este recebimento fica separado da comanda de consumo.</small></div>
+          </div>
+          <div class="mixed-payment-grid">
+            <label><span>Cartão</span><div class="money-input-wrap"><span>R$</span><input id="voucherPayCard" type="number" min="0" step="0.01" value="0.00" oninput="updateVoucherArrivalPayment(${remaining})"></div></label>
+            <label><span>PIX</span><div class="money-input-wrap"><span>R$</span><input id="voucherPayPix" type="number" min="0" step="0.01" value="0.00" oninput="updateVoucherArrivalPayment(${remaining})"></div></label>
+            <label><span>Dinheiro</span><div class="money-input-wrap"><span>R$</span><input id="voucherPayCash" type="number" min="0" step="0.01" value="0.00" oninput="updateVoucherArrivalPayment(${remaining})"></div></label>
+          </div>
+          <div class="mixed-payment-status">
+            <div><span>Recebido agora</span><strong id="voucherPaidNow">${voucherMoney(0)}</strong></div>
+            <div><span>Falta</span><strong id="voucherRemaining">${voucherMoney(remaining)}</strong></div>
+          </div>
+          <div id="voucherPaymentMessage" class="mixed-payment-message">Receba exatamente o saldo da passagem.</div>
+        </div>
+      `:''}
+
+      <div class="voucher-start-comanda">
+        <label>Número da comanda do barco
+          <input id="voucherTabNumber" type="number" min="1" step="1" placeholder="Ex.: 18">
+        </label>
+        <small>Depois do acerto da passagem, esta será a comanda usada para consumos de bar/cozinha.</small>
+      </div>
+
+      <div class="checkout-actions">
+        <button class="ghost" onclick="closeModal()">Cancelar</button>
+        <button id="voucherStartButton" class="primary" onclick="settleVoucherAndStartTab('${v.id}')" ${remaining>0.005?'disabled':''}>Confirmar embarque e iniciar comanda</button>
+      </div>
+    </div>
+  `);
+
+  if(remaining<=0.005){
+    const b=document.getElementById('voucherStartButton');
+    if(b) b.disabled=false;
+  }
+};
+
+window.updateVoucherArrivalPayment=function(total){
+  const card=Math.max(0,Number(document.getElementById('voucherPayCard')?.value)||0);
+  const pix=Math.max(0,Number(document.getElementById('voucherPayPix')?.value)||0);
+  const cash=Math.max(0,Number(document.getElementById('voucherPayCash')?.value)||0);
+  const paid=card+pix+cash;
+  const remaining=total-paid;
+  const balanced=Math.abs(remaining)<0.005;
+
+  const paidEl=document.getElementById('voucherPaidNow');
+  const remEl=document.getElementById('voucherRemaining');
+  const msg=document.getElementById('voucherPaymentMessage');
+  const btn=document.getElementById('voucherStartButton');
+
+  if(paidEl) paidEl.textContent=voucherMoney(paid);
+  if(remEl) remEl.textContent=voucherMoney(Math.abs(remaining)<0.005?0:remaining);
+  if(btn) btn.disabled=!balanced;
+
+  if(msg){
+    msg.classList.remove('ok','error');
+    if(balanced){
+      msg.textContent='Saldo da passagem quitado. Pode iniciar a comanda.';
+      msg.classList.add('ok');
+    }else if(remaining>0){
+      msg.textContent=`Ainda faltam ${voucherMoney(remaining)} da passagem.`;
+    }else{
+      msg.textContent=`Valor excede o saldo em ${voucherMoney(Math.abs(remaining))}.`;
+      msg.classList.add('error');
+    }
+  }
+
+  return {card,pix,cash,paid,remaining,balanced};
+};
+
+window.settleVoucherAndStartTab=function(voucherId){
+  const v=state.vouchers.find(x=>x.id===voucherId);
+  if(!v) return;
+
+  const raw=document.getElementById('voucherTabNumber')?.value;
+  const numeric=Number(raw);
+  if(!Number.isInteger(numeric)||numeric<=0){
+    return alert('Informe um número de comanda válido.');
+  }
+
+  const number=String(numeric);
+  const today=new Date().toLocaleDateString('en-CA');
+  const duplicate=state.tabs.some(t=>{
+    if(t.status==='CANCELADA') return false;
+    const d=new Date(t.createdAt).toLocaleDateString('en-CA');
+    return d===today&&String(Number(t.number))===number;
+  });
+  if(duplicate) return alert(`A Comanda ${number} já existe hoje.`);
+
+  const paidPreviously=state.voucherPayments.filter(p=>p.voucherId===v.id).reduce((s,p)=>s+Number(p.amount||0),0);
+  const remaining=Math.max(0,Number(v.due||0)-paidPreviously);
+
+  let split={card:0,pix:0,cash:0,paid:0,balanced:true};
+  if(remaining>0.005){
+    split=updateVoucherArrivalPayment(remaining);
+    if(!split?.balanced) return alert('Quite exatamente o saldo da passagem antes de iniciar a comanda.');
+  }
+
+  const now=new Date().toISOString();
+
+  [
+    ['CARTAO',split.card],
+    ['PIX',split.pix],
+    ['DINHEIRO',split.cash]
+  ].forEach(([method,amount])=>{
+    if(Number(amount)>0){
+      state.voucherPayments.push({
+        id:id(),
+        voucherId:v.id,
+        voucherNumber:v.voucherNumber,
+        method,
+        amount:Number(amount),
+        createdAt:now,
+        createdBy:window.currentProfile?.id||null,
+        createdByName:window.currentProfile?.full_name||'Usuário'
+      });
+    }
+  });
+
+  const tabId=id();
+  state.tabs.push({
+    id:tabId,
+    number,
+    customer:v.name,
+    people:Number(v.passengers||1),
+    status:'ABERTA',
+    createdAt:now,
+    closedAt:null,
+    total:0,
+    voucherId:v.id,
+    voucherNumber:v.voucherNumber,
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Usuário'
+  });
+
+  // Taxas automáticas do barco começam somente no momento do embarque.
+  state.orders.push({
+    id:id(),
+    tabId,
+    items:[
+      {productId:'taxa-couvert-artistico',name:'Couvert artístico',category:'TAXAS',sector:'TAXAS',price:12,qty:Number(v.passengers||1)},
+      {productId:'taxa-sustentabilidade',name:'Taxa de sustentabilidade',category:'TAXAS',sector:'TAXAS',price:2,qty:Number(v.passengers||1)}
+    ],
+    total:Number(v.passengers||1)*14,
+    createdAt:now,
+    status:'ENVIADO',
+    automatic:true,
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Sistema'
+  });
+
+  v.status='EMBARCADO';
+  v.tabId=tabId;
+  v.tabNumber=number;
+  v.boardedAt=now;
+  v.boardedBy=window.currentProfile?.id||null;
+  v.boardedByName=window.currentProfile?.full_name||'Usuário';
+
+  save();
+  currentTabId=tabId;
+  cart=[];
+  closeModal();
+  renderTabModal();
+};
+
 function renderAll(){
   if(!document.getElementById('todayLabel'))return;
   document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -1699,6 +2170,7 @@ function renderAll(){
     <div class="report-row"><span>Cartão</span><strong>${money(daily.card)}</strong></div>
     <div class="report-row"><span>Ticket médio</span><strong>${money(daily.avgTicket)}</strong></div>
     <div class="report-row"><span>Total recebido</span><strong>${money(daily.totalReceived)}</strong></div>`;
+  renderVouchers();
   document.getElementById('companyName').value=state.settings.company;document.getElementById('boatName').value=state.settings.boat;document.getElementById('printBridgeUrl').value=state.settings.printBridge;
 }
 

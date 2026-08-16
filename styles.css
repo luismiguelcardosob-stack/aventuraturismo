@@ -980,3 +980,167 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
     justify-content:space-between;
   }
 }
+
+
+/* Vouchers da agência */
+.voucher-upload-panel{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:14px;
+  align-items:center;
+  margin-bottom:14px;
+}
+.voucher-upload-panel>div:first-child{display:grid;gap:4px}
+.voucher-upload-panel small{color:var(--muted)}
+.voucher-upload-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:11px 15px;
+  border-radius:11px;
+  background:var(--brand);
+  color:#fff;
+  font-weight:900;
+  cursor:pointer;
+}
+.voucher-upload-btn input{display:none}
+.voucher-upload-status{
+  grid-column:1/-1;
+  min-height:18px;
+  font-size:12px;
+  color:var(--muted);
+}
+.voucher-upload-status.ok{color:#176444}
+.voucher-upload-status.error{color:#a72e2e}
+.voucher-search-panel{
+  margin-bottom:14px;
+}
+.voucher-search-panel input{
+  width:100%;
+  padding:13px 14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+.vouchers-list{display:grid;gap:12px}
+.voucher-card{
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  padding:16px;
+  box-shadow:0 8px 22px rgba(35,27,49,.05);
+}
+.voucher-card-head{
+  display:flex;
+  justify-content:space-between;
+  gap:15px;
+  align-items:flex-start;
+}
+.voucher-card-head h3{margin:4px 0}
+.voucher-card-head p{margin:0;color:var(--muted);font-size:12px}
+.voucher-status{
+  display:inline-flex;
+  padding:7px 9px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.voucher-status.pending{background:#fff4df;color:#9a6517}
+.voucher-status.ready{background:#eaf8f0;color:#176444}
+.voucher-status.started{background:#efe8ff;color:var(--brand)}
+.voucher-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+  margin-top:14px;
+}
+.voucher-detail-grid>div{
+  display:grid;
+  gap:4px;
+  padding:10px;
+  border-radius:10px;
+  background:#faf9fc;
+}
+.voucher-detail-grid span{font-size:10px;color:var(--muted)}
+.voucher-detail-grid strong{font-size:12px}
+.voucher-detail-grid .voucher-due{
+  background:#fff3f3;
+}
+.voucher-detail-grid .voucher-due strong{color:#b12e2e}
+.voucher-card-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:14px;
+}
+.voucher-empty{
+  padding:30px;
+  text-align:center;
+  color:var(--muted);
+}
+.voucher-form{display:grid;gap:16px}
+.voucher-form-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+}
+.voucher-form-grid label,
+.voucher-values-grid label,
+.voucher-start-comanda label{
+  display:grid;
+  gap:6px;
+  font-size:12px;
+  font-weight:800;
+}
+.voucher-form-grid input,
+.voucher-start-comanda input{
+  width:100%;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+}
+.voucher-values-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+.voucher-info-note{
+  padding:12px 14px;
+  border-radius:12px;
+  background:#f3eefb;
+  color:#5f4a78;
+  font-size:12px;
+  line-height:1.45;
+}
+.voucher-arrival{display:grid;gap:16px}
+.voucher-arrival-summary{
+  display:flex;
+  justify-content:space-between;
+  gap:15px;
+  align-items:flex-start;
+}
+.voucher-arrival-summary h3{margin:4px 0}
+.voucher-arrival-summary p{margin:0;color:var(--muted)}
+.voucher-arrival-due{
+  text-align:right;
+}
+.voucher-arrival-due span{display:block;color:var(--muted);font-size:11px}
+.voucher-arrival-due strong{display:block;font-size:24px;color:#b12e2e;margin-top:3px}
+.voucher-start-comanda{
+  display:grid;
+  gap:5px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#faf9fc;
+}
+.voucher-start-comanda small{color:var(--muted)}
+@media(max-width:900px){
+  .voucher-detail-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:650px){
+  .voucher-upload-panel{grid-template-columns:1fr}
+  .voucher-form-grid,.voucher-values-grid{grid-template-columns:1fr}
+  .voucher-card-head,.voucher-arrival-summary{flex-direction:column}
+  .voucher-arrival-due{text-align:left}
+}
