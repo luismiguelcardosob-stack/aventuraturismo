@@ -1287,6 +1287,30 @@ function getTodayOperationalData(){
     return sum+tabAuto.reduce((s,o)=>s+o.items.filter(i=>i.productId==='taxa-sustentabilidade').reduce((a,i)=>a+Number(i.qty||0)*Number(i.price||0),0),0);
   },0);
 
+  const productOrders=todaysOrders.filter(o=>!o.automatic);
+
+  const productSales=productOrders.reduce(
+    (sum,o)=>sum+Number(o.total||0),0
+  );
+
+  const barSales=productOrders.reduce(
+    (sum,o)=>sum+o.items
+      .filter(i=>i.sector==='BAR')
+      .reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0)
+  ,0);
+
+  const kitchenSales=productOrders.reduce(
+    (sum,o)=>sum+o.items
+      .filter(i=>i.sector==='COZINHA')
+      .reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0)
+  ,0);
+
+  const extrasSales=productOrders.reduce(
+    (sum,o)=>sum+o.items
+      .filter(i=>!['BAR','COZINHA'].includes(i.sector))
+      .reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0)
+  ,0);
+
   const serviceFee=closed.reduce((s,t)=>s+Number(t.serviceFee||0),0);
   const totalReceived=todaysPayments.reduce((s,p)=>s+Number(p.amount||0),0);
   const byMethod=m=>todaysPayments.filter(p=>p.method===m).reduce((s,p)=>s+Number(p.amount||0),0);
@@ -1641,7 +1665,21 @@ function renderAll(){
   const byMethod=m=>state.payments.filter(p=>p.method===m).reduce((s,p)=>s+p.amount,0);
   document.getElementById('cashTotal').textContent=money(byMethod('DINHEIRO'));document.getElementById('pixTotal').textContent=money(byMethod('PIX'));document.getElementById('cardTotal').textContent=money(byMethod('CARTAO'));document.getElementById('receivedTotal').textContent=money(state.payments.reduce((s,p)=>s+p.amount,0));
   document.getElementById('closedTabs').innerHTML=closed.length?closed.map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><strong>${money(t.total)}</strong></div>`).join(''):'<small>Nenhuma comanda fechada.</small>';
-  const daily=getTodayOperationalData();
+  let daily;
+  try{
+    daily=getTodayOperationalData();
+  }catch(err){
+    console.error('Erro ao montar relatório diário:',err);
+    const reportBox=document.getElementById('dailyReport');
+    if(reportBox){
+      reportBox.innerHTML='<div class="users-load-error"><strong>Erro ao carregar relatório.</strong><span>Atualize a página. Se persistir, verifique o console.</span></div>';
+    }
+    daily={
+      people:0,open:[],closed:[],avgDuration:0,barSales:0,kitchenSales:0,
+      couvert:0,sustentabilidade:0,serviceFee:0,pix:0,cash:0,card:0,
+      avgTicket:0,totalReceived:0
+    };
+  }
   document.getElementById('dailyReport').innerHTML=`
     <div class="daily-report-toolbar">
       <div><strong>Resumo operacional de hoje</strong><small>${new Date().toLocaleDateString('pt-BR')}</small></div>
