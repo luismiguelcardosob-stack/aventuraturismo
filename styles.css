@@ -1423,278 +1423,226 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
 }
 
 
-/* v.90C - feedback obrigatório de ações */
-.action-toast{
-  position:fixed;
-  left:50%;
-  bottom:24px;
-  transform:translateX(-50%);
-  z-index:9999;
-  width:min(520px,calc(100% - 28px));
-  padding:13px 16px;
-  border-radius:13px;
-  box-shadow:0 16px 44px rgba(0,0,0,.22);
-  font-size:13px;
-  font-weight:900;
-  text-align:center;
-  background:#2c2435;
-  color:#fff;
+/* ============================================================
+   TEMA CAPITÃO GANCHO / MARÍTIMO — SOMENTE VISUAL
+   ============================================================ */
+.theme-pirata{
+  --bg:#06131f;--surface:#0b1d2b;--ink:#f6ead0;--muted:#9fb4c4;
+  --brand:#d9a441;--brand2:#f1c76b;--line:rgba(217,164,65,.30);
+  --ok:#36c98f;--danger:#d95656;--shadow:0 16px 40px rgba(0,0,0,.28);
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 80% 0%,rgba(31,92,122,.22),transparent 30%),
+    radial-gradient(circle at 10% 5%,rgba(217,164,65,.10),transparent 24%),
+    linear-gradient(180deg,#071522 0%,#06111b 38%,#04101a 100%);
+  color:var(--ink);
 }
-.action-toast.info{background:#342744;color:#fff}
-.action-toast.success{background:#176444;color:#fff}
-.action-toast.error{background:#a72e2e;color:#fff}
-.action-toast.hidden{display:none!important}
-
-button.button-click-feedback{
-  transform:scale(.97);
-  opacity:.82;
+.theme-pirata::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.10;
+  background-image:
+    radial-gradient(circle at 20px 20px,rgba(255,255,255,.10) 1px,transparent 1px),
+    linear-gradient(120deg,transparent 45%,rgba(255,255,255,.035) 46%,transparent 47%);
+  background-size:34px 34px,120px 120px;
 }
-button.is-loading{
-  cursor:wait!important;
-  opacity:.78;
-  position:relative;
+.theme-pirata .topbar{
+  position:relative;overflow:hidden;min-height:150px;align-items:flex-start;padding:26px 32px 24px;
+  background:
+    linear-gradient(90deg,rgba(3,16,28,.98),rgba(6,28,43,.95) 52%,rgba(4,17,29,.98)),
+    radial-gradient(circle at 55% 15%,rgba(40,102,133,.35),transparent 32%);
+  border-bottom:1px solid rgba(217,164,65,.45);box-shadow:0 12px 35px rgba(0,0,0,.30)
 }
-button.is-loading::before{
-  content:"";
-  display:inline-block;
-  width:13px;
-  height:13px;
-  margin-right:8px;
-  vertical-align:-2px;
-  border:2px solid currentColor;
-  border-right-color:transparent;
-  border-radius:50%;
-  animation:aventuraSpin .7s linear infinite;
+.theme-pirata .topbar::before{
+  content:"☠";position:absolute;right:44%;top:8px;font-size:106px;line-height:1;
+  color:rgba(217,164,65,.06);transform:rotate(-4deg)
 }
-@keyframes aventuraSpin{to{transform:rotate(360deg)}}
-
-
-/* v.90D - edição e exclusão de passagens/vouchers */
-.voucher-card-actions{
-  gap:8px;
-  flex-wrap:wrap;
+.theme-pirata .topbar::after{
+  content:"⚓   ~ ~ ~   ⛵   ~ ~ ~";position:absolute;left:30px;right:30px;bottom:8px;
+  text-align:center;color:rgba(155,205,226,.15);letter-spacing:.25em;font-size:18px
 }
-.voucher-card-actions .danger,
-.voucher-card-actions .ghost,
-.voucher-card-actions .primary{
-  min-height:40px;
+.theme-pirata .brand-title-row h1{
+  color:#f0c774;font-family:Georgia,"Times New Roman",serif;font-size:34px;
+  letter-spacing:.02em;text-shadow:0 2px 12px rgba(0,0,0,.5)
 }
-@media(max-width:650px){
-  .voucher-card-actions>*{width:100%}
+.theme-pirata .topbar p{color:#d7c49d;font-family:Georgia,"Times New Roman",serif;font-size:16px}
+.theme-pirata .brand-title-row::before{
+  content:"☠";display:grid;place-items:center;width:44px;height:44px;margin-right:2px;
+  border:1px solid rgba(217,164,65,.55);border-radius:50%;color:#f1c76b;background:#0b1b29;
+  box-shadow:inset 0 0 0 4px rgba(217,164,65,.08),0 7px 18px rgba(0,0,0,.25);font-size:23px
 }
-
-
-/* v.90E - edição de comandas e agentes */
-.agent-edit-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:12px;
+.theme-pirata .system-version{background:#0d5c87;border-color:rgba(255,255,255,.18);box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.theme-pirata .badge,.theme-pirata .user-chip{
+  background:rgba(8,31,45,.92);border:1px solid rgba(217,164,65,.28);color:#eef6f8;
+  box-shadow:0 5px 18px rgba(0,0,0,.16)
 }
-.agent-edit-grid label{
-  display:grid;
-  gap:6px;
-  font-size:12px;
-  font-weight:800;
+.theme-pirata .user-chip::before{content:"🏴‍☠️ "}
+.theme-pirata .operational-calendar{
+  background:#081927;border-bottom:1px solid rgba(217,164,65,.26);padding-top:14px;padding-bottom:14px
 }
-.agent-edit-grid input{
-  width:100%;
-  padding:12px;
-  border:1px solid var(--line);
-  border-radius:10px;
+.theme-pirata .operational-calendar label,.theme-pirata .operational-calendar small{color:#9eb1bf}
+.theme-pirata .operational-calendar input{
+  background:#0b1d2b;color:#f6ead0;border-color:rgba(217,164,65,.32);color-scheme:dark
 }
-.agent-wide{grid-column:1/-1}
-@media(max-width:650px){
-  .agent-edit-grid{grid-template-columns:1fr}
-  .agent-wide{grid-column:auto}
+.theme-pirata .operational-status.current{background:rgba(54,201,143,.13);color:#6be1ad;border:1px solid rgba(54,201,143,.25)}
+.theme-pirata .operational-status.history{background:rgba(217,164,65,.13);color:#f1c76b;border:1px solid rgba(217,164,65,.25)}
+.theme-pirata .tabs{background:#071724;border-bottom:1px solid rgba(217,164,65,.38);box-shadow:0 5px 16px rgba(0,0,0,.18)}
+.theme-pirata .tab{
+  color:#d6c39e;border-radius:8px;font-family:Georgia,"Times New Roman",serif;font-size:14px
 }
-
-
-/* v.90F - agentes em lista e passagem padrão */
-.voucher-form-grid select{
-  width:100%;
-  padding:12px;
-  border:1px solid var(--line);
-  border-radius:10px;
-  background:#fff;
+.theme-pirata .tab:hover{color:#fff0c8;background:rgba(217,164,65,.08)}
+.theme-pirata .tab.active{
+  color:#fff0c8;background:linear-gradient(180deg,#132d40,#0a1f2e);
+  border:1px solid rgba(217,164,65,.55);box-shadow:inset 0 -2px 0 #d9a441
 }
-.voucher-form-grid input[readonly]{
-  background:#f7f5fb;
-  font-weight:900;
-  color:var(--brand);
+.theme-pirata .tab[data-view="dashboard"]::before{content:"⌂  "}
+.theme-pirata .tab[data-view="comandas"]::before{content:"☷  "}
+.theme-pirata .tab[data-view="vouchers"]::before{content:"⚓  "}
+.theme-pirata .tab[data-view="agentes"]::before{content:"☠  "}
+.theme-pirata .tab[data-view="comissoes"]::before{content:"◉  "}
+.theme-pirata .tab[data-view="produtos"]::before{content:"◆  "}
+.theme-pirata .tab[data-view="estoque"]::before{content:"▣  "}
+.theme-pirata .tab[data-view="caixa"]::before{content:"▤  "}
+.theme-pirata .tab[data-view="relatorios"]::before{content:"☷  "}
+.theme-pirata .tab[data-view="configuracoes"]::before{content:"⚙  "}
+.theme-pirata .tab[data-view="usuarios"]::before{content:"♜  "}
+.theme-pirata main{max-width:1450px;padding-top:30px}
+.theme-pirata .eyebrow{color:#46b9de}
+.theme-pirata .section-head h2,.theme-pirata .panel h3,
+.theme-pirata .voucher-card h3,.theme-pirata .agent-card h3,.theme-pirata .commission-card h3{
+  color:#f7e7c5;font-family:Georgia,"Times New Roman",serif
 }
-
-
-/* v.90G - tipos de passageiro no voucher */
-.voucher-passenger-types{
-  grid-column:1/-1;
-  display:grid;
-  gap:10px;
-  padding:14px;
-  border:1px solid var(--line);
-  border-radius:14px;
-  background:#faf9fc;
+.theme-pirata .muted{color:#9fb4c4}
+.theme-pirata .hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(120deg,rgba(4,31,48,.98),rgba(9,57,77,.90)),
+  radial-gradient(circle at 80% 30%,rgba(67,151,183,.26),transparent 30%);
+  border:1px solid rgba(217,164,65,.42);box-shadow:0 18px 48px rgba(0,0,0,.30)
 }
-.voucher-passenger-types>small{
-  color:var(--muted);
-  line-height:1.45;
+.theme-pirata .hero::after{
+  content:"☠  ⚓  ⛵";position:absolute;right:26px;bottom:-14px;font-size:72px;opacity:.07;letter-spacing:.15em
 }
-.voucher-passenger-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:10px;
+.theme-pirata .hero h2{color:#f1c76b;font-family:Georgia,"Times New Roman",serif}
+.theme-pirata .hero p{color:#bdd1dc}
+.theme-pirata .card,.theme-pirata .panel,.theme-pirata .tab-card,.theme-pirata .stock-card,
+.theme-pirata .voucher-card,.theme-pirata .agent-card,.theme-pirata .commission-card,
+.theme-pirata .manager-order-card,.theme-pirata .current-order-panel,.theme-pirata .closing-fees-panel,
+.theme-pirata .mixed-payment-box,.theme-pirata .checkout-summary{
+  background:linear-gradient(180deg,#0c2130,#091a27);border-color:rgba(217,164,65,.28);box-shadow:var(--shadow)
 }
-.voucher-passenger-grid label{
-  display:grid;
-  gap:6px;
-  padding:10px;
-  border:1px solid var(--line);
-  border-radius:11px;
-  background:#fff;
+.theme-pirata .card span,.theme-pirata .list-item small{color:#9fb4c4}
+.theme-pirata .card strong,.theme-pirata .tab-card .value{color:#fff0c8}
+.theme-pirata .list-item,.theme-pirata .manager-order-item,.theme-pirata .stable-cart-item,
+.theme-pirata .sent-history-row,.theme-pirata .checkout-item,.theme-pirata .fee-toggle-row{
+  background:#0b1d2b;border-color:rgba(217,164,65,.22)
 }
-.voucher-passenger-grid input{
-  width:100%;
-  padding:11px;
-  border:1px solid var(--line);
-  border-radius:9px;
-  font-weight:900;
+.theme-pirata .pill{background:rgba(217,164,65,.12);color:#f1c76b;border:1px solid rgba(217,164,65,.25)}
+.theme-pirata .primary,.theme-pirata .voucher-upload-btn{
+  color:#07131d;background:linear-gradient(180deg,#f0c872,#d39a34);
+  border:1px solid #f6d993;box-shadow:0 7px 18px rgba(0,0,0,.24)
 }
-.voucher-passenger-summary{
-  margin-top:5px!important;
-  font-size:11px!important;
-  color:#6d5a82!important;
+.theme-pirata .primary:hover,.theme-pirata .voucher-upload-btn:hover{
+  background:linear-gradient(180deg,#ffe09d,#e4ad48)
 }
-@media(max-width:800px){
-  .voucher-passenger-grid{grid-template-columns:repeat(2,1fr)}
+.theme-pirata .ghost{color:#f0d7a0;background:#0a1b28;border-color:rgba(217,164,65,.34)}
+.theme-pirata .ghost:hover{background:#10283a}
+.theme-pirata .logout-btn{color:#f6d994}
+.theme-pirata .danger{background:#32171a;color:#ff9a9a;border:1px solid rgba(217,86,86,.35)}
+.theme-pirata input,.theme-pirata select,.theme-pirata textarea,.theme-pirata .money-input-wrap{
+  color:#f4ead5;background:#081a28!important;border-color:rgba(217,164,65,.30)!important
 }
-@media(max-width:520px){
-  .voucher-passenger-grid{grid-template-columns:1fr}
+.theme-pirata input::placeholder,.theme-pirata textarea::placeholder{color:#708a9a}
+.theme-pirata input:focus,.theme-pirata select:focus,.theme-pirata textarea:focus{
+  outline:none;border-color:#d9a441!important;box-shadow:0 0 0 3px rgba(217,164,65,.12)!important
 }
-
-
-/* v.90I - agente com lista + digitação livre */
-.voucher-form-grid input[list]{
-  width:100%;
-  padding:12px;
-  border:1px solid var(--line);
-  border-radius:10px;
-  background:#fff;
+.theme-pirata option{background:#081a28;color:#f4ead5}
+.theme-pirata table{color:#f4ead5}
+.theme-pirata th{color:#d4b977}
+.theme-pirata th,.theme-pirata td{border-color:rgba(217,164,65,.18)}
+.theme-pirata .voucher-upload-panel{background:linear-gradient(180deg,#0b2232,#081a28)}
+.theme-pirata .voucher-search-panel input{background:#071724!important}
+.theme-pirata .voucher-card{
+  position:relative;overflow:hidden;
+  background:linear-gradient(90deg,rgba(55,34,20,.92),rgba(36,25,18,.96)),
+  linear-gradient(180deg,#2a1c13,#17100b);
+  border-color:rgba(217,164,65,.42)
 }
-.voucher-form-grid label small{
-  color:var(--muted);
-  font-size:11px;
-  font-weight:600;
-  line-height:1.35;
+.theme-pirata .voucher-card::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.16;
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 1px,transparent 1px 6px),
+  radial-gradient(circle at 85% 20%,rgba(217,164,65,.18),transparent 22%)
 }
-
-
-/* v.90J - comissões integradas */
-.commissions-summary{
-  grid-template-columns:repeat(3,minmax(0,220px));
+.theme-pirata .voucher-card>*{position:relative}
+.theme-pirata .voucher-card-head p{color:#b9a987}
+.theme-pirata .voucher-detail-grid>div{
+  background:rgba(7,19,27,.56);border:1px solid rgba(217,164,65,.20)
 }
-.report-subtabs{
-  display:flex;
-  gap:8px;
-  margin-bottom:14px;
+.theme-pirata .voucher-detail-grid span{color:#c2aa73}
+.theme-pirata .voucher-detail-grid strong{color:#fff1cf}
+.theme-pirata .voucher-detail-grid .voucher-due{background:rgba(80,22,22,.55)}
+.theme-pirata .voucher-status.pending{background:#493716;color:#ffd77b}
+.theme-pirata .voucher-status.ready{background:#123c2d;color:#75e0b0}
+.theme-pirata .voucher-status.started{background:#0b3350;color:#7ed6ff}
+.theme-pirata .agent-stats>div,.theme-pirata .commission-values>div,.theme-pirata .commissions-summary>div{
+  background:#071a27;border:1px solid rgba(217,164,65,.20)
 }
-.report-subtab{
-  border:1px solid var(--line);
-  background:#fff;
-  color:var(--muted);
-  padding:10px 14px;
-  border-radius:10px;
-  font-weight:900;
+.theme-pirata .commission-status.pending{background:#493716;color:#ffd77b}
+.theme-pirata .commission-status.paid{background:#123c2d;color:#75e0b0}
+.theme-pirata .modal{background:rgba(0,7,12,.76);backdrop-filter:blur(4px)}
+.theme-pirata .modal-box{
+  background:#081925;color:#f4ead5;border:1px solid rgba(217,164,65,.42);
+  box-shadow:0 35px 90px rgba(0,0,0,.55)
 }
-.report-subtab.active{
-  background:#f1eafd;
-  color:var(--brand);
-  border-color:#d8c5f4;
+.theme-pirata .modal-head{background:#0b2130;border-bottom-color:rgba(217,164,65,.24)}
+.theme-pirata .modal-head h3{color:#f1c76b;font-family:Georgia,"Times New Roman",serif}
+.theme-pirata .modal-head button{color:#f5d790}
+.theme-pirata .modal-body{background:#081925}
+.theme-pirata .order-menu-title{background:#081925;color:#f1c76b;border-bottom-color:rgba(217,164,65,.22)}
+.theme-pirata .order-product-btn,.theme-pirata .product-btn{
+  background:#0b1e2c;color:#f5ead2;border-color:rgba(217,164,65,.22)
 }
-.commission-report-cards{
-  grid-template-columns:repeat(3,1fr);
+.theme-pirata .order-product-btn:hover,.theme-pirata .product-btn:hover{
+  border-color:#d9a441;box-shadow:0 8px 20px rgba(0,0,0,.22)
 }
-.commission-report-agent{
-  display:flex;
-  justify-content:space-between;
-  gap:16px;
-  align-items:center;
-  padding:14px 0;
-  border-bottom:1px solid var(--line);
+.theme-pirata .order-product-btn em,.theme-pirata .product-description{color:#8fa7b7}
+.theme-pirata .order-product-btn span{color:#f1c76b}
+.theme-pirata .sent-order-success,.theme-pirata .login-success,.theme-pirata .mixed-payment-message.ok{
+  background:#0f3d2d;color:#7ce0b3;border-color:rgba(54,201,143,.25)
 }
-.commission-report-agent>div:first-child{
-  display:grid;
-  gap:3px;
+.theme-pirata .checkout-warning,.theme-pirata .caps-lock-warning,.theme-pirata .manager-warning{
+  background:#3b2b12;color:#ffd77b;border-color:rgba(217,164,65,.28)
 }
-.commission-report-agent small{
-  color:var(--muted);
+.theme-pirata .login-error,.theme-pirata .mixed-payment-message.error,.theme-pirata .users-load-error{
+  background:#3b1719;color:#ffaaaa;border-color:rgba(217,86,86,.28)
 }
-.commission-report-values{
-  display:grid;
-  gap:3px;
-  text-align:right;
+.theme-pirata .login-screen{
+  background:radial-gradient(circle at 70% 18%,rgba(74,133,157,.22),transparent 24%),
+  linear-gradient(145deg,#020c13,#071c2b 55%,#040d14)
 }
-.commission-detail-row small{
-  color:var(--muted);
+.theme-pirata .login-card{
+  background:linear-gradient(180deg,#0c2231,#071720);color:#f7e9ca;
+  border:1px solid rgba(217,164,65,.42);box-shadow:0 38px 100px rgba(0,0,0,.55)
 }
-@media(max-width:700px){
-  .report-subtabs{display:grid;grid-template-columns:1fr 1fr}
-  .commission-report-cards{grid-template-columns:1fr}
-  .commission-report-agent{align-items:flex-start;flex-direction:column}
-  .commission-report-values{text-align:left}
+.theme-pirata .login-logo{
+  background:linear-gradient(180deg,#e6b85d,#b97922);color:#07131d;border:2px solid #f3d594;
+  box-shadow:0 7px 18px rgba(0,0,0,.25)
 }
-
-
-/* v.90K - total da equipe e relatório de comissões */
-.report-row-highlight{
-  margin-top:4px;
-  padding:13px 10px;
-  border-radius:10px;
-  background:#f3eefb;
-  color:#4f2f7f;
-  border-bottom:0;
+.theme-pirata .login-brand h1{color:#f1c76b;font-family:Georgia,"Times New Roman",serif}
+.theme-pirata .login-brand p,.theme-pirata .login-foot{color:#9eb2c0}
+.theme-pirata .login-form label,.theme-pirata .form-grid label,.theme-pirata .settings label,
+.theme-pirata .agent-form label,.theme-pirata .voucher-form-grid label,.theme-pirata .voucher-values-grid label{
+  color:#d9c89f
 }
-.report-row-highlight strong{
-  font-size:15px;
+.theme-pirata *{scrollbar-width:thin;scrollbar-color:#9b742e #071724}
+.theme-pirata *::-webkit-scrollbar{width:10px;height:10px}
+.theme-pirata *::-webkit-scrollbar-track{background:#071724}
+.theme-pirata *::-webkit-scrollbar-thumb{background:#745828;border-radius:999px;border:2px solid #071724}
+@media(max-width:900px){
+  .theme-pirata .topbar{min-height:auto}
+  .theme-pirata .topbar::before,.theme-pirata .topbar::after{display:none}
+  .theme-pirata .brand-title-row h1{font-size:28px}
 }
-
-
-/* v.90M - central de atualização */
-.version-update-btn{
-  border:1px solid rgba(255,255,255,.28);
-  background:rgba(255,255,255,.08);
-  color:#fff;
-  padding:6px 9px;
-  border-radius:999px;
-  font-size:10px;
-  font-weight:900;
-  cursor:pointer;
-}
-.version-update-btn:hover{background:rgba(255,255,255,.16)}
-.update-center{display:grid;gap:14px}
-.update-current{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:center;
-  padding:14px;
-  border-radius:12px;
-  background:#f7f4fb;
-}
-.update-current span{color:var(--muted)}
-.update-current strong{font-size:18px;color:var(--brand)}
-.update-center-status{
-  padding:13px 14px;
-  border-radius:12px;
-  font-weight:850;
-  background:#f7f7f7;
-}
-.update-center-status.success{background:#eaf8f0;color:#176444}
-.update-center-status.warning{background:#fff4df;color:#8a5b18}
-.update-center-status.error{background:#fdeaea;color:#9c2424}
-.update-center-note{
-  display:grid;
-  gap:4px;
-  padding:13px;
-  border:1px solid var(--line);
-  border-radius:12px;
-  color:var(--muted);
+@media(max-width:600px){
+  .theme-pirata .brand-title-row::before{width:38px;height:38px;font-size:20px}
+  .theme-pirata .brand-title-row h1{font-size:25px}
+  .theme-pirata .topbar{padding:18px}
+  .theme-pirata main{padding:16px}
 }
