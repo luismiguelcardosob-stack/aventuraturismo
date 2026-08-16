@@ -1,17 +1,46 @@
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const id=()=>crypto.randomUUID();
 
+const MENU_VERSION='2026-08-cardapio-01';
+const MENU_PRODUCTS=[
+    {id:"almoco-peixe-camarao",name:"Filé de peixe ao molho de camarão",category:"ALMOÇO",sector:"COZINHA",price:70,stock:999,min:0},
+    {id:"almoco-peixe-palmito",name:"Filé de peixe ao creme de palmito",category:"ALMOÇO",sector:"COZINHA",price:65,stock:999,min:0},
+    {id:"almoco-frango-palmito",name:"Filé de frango grelhado ao creme de palmito",category:"ALMOÇO",sector:"COZINHA",price:65,stock:999,min:0},
+    {id:"almoco-frango-grelhado",name:"Frango grelhado",category:"ALMOÇO",sector:"COZINHA",price:60,stock:999,min:0},
+    {id:"almoco-strogonoff-frango",name:"Strogonoff de frango",category:"ALMOÇO",sector:"COZINHA",price:55,stock:999,min:0},
+    {id:"almoco-espaguete-camarao",name:"Espaguete ao molho de camarão",category:"ALMOÇO",sector:"COZINHA",price:60,stock:999,min:0},
+    {id:"almoco-salada-mista",name:"Salada mista",category:"ALMOÇO",sector:"COZINHA",price:45,stock:999,min:0},
+    {id:"almoco-kids",name:"Kids",category:"ALMOÇO",sector:"COZINHA",price:50,stock:999,min:0},
+    {id:"almoco-strogonoff-camarao",name:"Strogonoff de camarão",category:"ALMOÇO",sector:"COZINHA",price:60,stock:999,min:0},
+    {id:"almoco-vegetariano",name:"Vegetariano",category:"ALMOÇO",sector:"COZINHA",price:50,stock:999,min:0},
+    {id:"porcao-isca-frango",name:"Isca de frango",category:"PORÇÕES",sector:"COZINHA",price:70,stock:999,min:0},
+    {id:"porcao-isca-peixe",name:"Isca de peixe",category:"PORÇÕES",sector:"COZINHA",price:85,stock:999,min:0},
+    {id:"porcao-batata-frita",name:"Batata frita",category:"PORÇÕES",sector:"COZINHA",price:49,stock:999,min:0},
+    {id:"porcao-camarao-frito",name:"Camarão frito",category:"PORÇÕES",sector:"COZINHA",price:130,stock:999,min:0},
+    {id:"porcao-camarao-dore",name:"Camarão à dorê",category:"PORÇÕES",sector:"COZINHA",price:130,stock:999,min:0},
+    {id:"porcao-lula-dore",name:"Lula à dorê",category:"PORÇÕES",sector:"COZINHA",price:110,stock:999,min:0},
+    {id:"porcao-fritas-calabresa",name:"Fritas com calabresa",category:"PORÇÕES",sector:"COZINHA",price:60,stock:999,min:0},
+    {id:"porcao-calabresa-acebolada",name:"Calabresa acebolada",category:"PORÇÕES",sector:"COZINHA",price:50,stock:999,min:0},
+    {id:"porcao-contrafile-fritas",name:"Contra filé com fritas",category:"PORÇÕES",sector:"COZINHA",price:99,stock:999,min:0},
+    {id:"bebida-agua-sem-gas",name:"Água sem gás",category:"BEBIDAS",sector:"BAR",price:5,stock:999,min:0},
+    {id:"bebida-agua-com-gas",name:"Água com gás",category:"BEBIDAS",sector:"BAR",price:6,stock:999,min:0},
+    {id:"bebida-refrigerante-lata",name:"Refrigerante lata",category:"BEBIDAS",sector:"BAR",price:10,stock:999,min:0},
+    {id:"bebida-suco-natural",name:"Suco natural",category:"BEBIDAS",sector:"BAR",price:18,stock:999,min:0},
+    {id:"bebida-cerveja-lata",name:"Cerveja lata",category:"BEBIDAS",sector:"BAR",price:10,stock:999,min:0},
+    {id:"bebida-cerveja-latao",name:"Cerveja latão",category:"BEBIDAS",sector:"BAR",price:15,stock:999,min:0},
+    {id:"bebida-cerveja-long-neck",name:"Cerveja long neck",category:"BEBIDAS",sector:"BAR",price:17,stock:999,min:0},
+    {id:"drink-caipirinha",name:"Caipirinha",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
+    {id:"drink-caipvodka",name:"Caipvodka",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
+    {id:"drink-jorge-amado",name:"Jorge Amado",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
+    {id:"drink-dose-cachaca",name:"Dose de cachaça Gabriela ou pinga",category:"DRINKS",sector:"BAR",price:15,stock:999,min:0},
+    {id:"drink-dose-vodka",name:"Dose de vodka",category:"DRINKS",sector:"BAR",price:20,stock:999,min:0},
+    {id:"drink-batida",name:"Batida",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
+    {id:"drink-carpe-diem",name:"Carpe Diem",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0}
+  ];
+
 const defaults={
-  products:[
-    {id:id(),name:'Água',sector:'BAR',price:6,stock:80,min:20},
-    {id:id(),name:'Coca-Cola',sector:'BAR',price:8,stock:60,min:15},
-    {id:id(),name:'Heineken',sector:'BAR',price:12,stock:120,min:30},
-    {id:id(),name:'Caipirinha',sector:'BAR',price:22,stock:40,min:10},
-    {id:id(),name:'Batata frita',sector:'COZINHA',price:28,stock:30,min:8},
-    {id:id(),name:'Porção de peixe',sector:'COZINHA',price:55,stock:25,min:6},
-    {id:id(),name:'Hambúrguer',sector:'COZINHA',price:32,stock:20,min:5},
-    {id:id(),name:'Misto quente',sector:'COZINHA',price:18,stock:25,min:5}
-  ],
+  menuVersion:MENU_VERSION,
+  products:structuredClone(MENU_PRODUCTS),
   tabs:[],orders:[],payments:[],
   settings:{company:'Aventura Turismo',boat:'Capitão Gancho',printBridge:'http://localhost:8787'}
 };
@@ -52,7 +81,20 @@ async function loadCloudState(){
 
   if(data?.state){
     state=data.state;
-    localStorage.setItem('aventura_pdv',JSON.stringify(state));
+
+    // Atualiza o catálogo para o cardápio oficial sem apagar comandas/pedidos antigos.
+    if(state.menuVersion!==MENU_VERSION){
+      state.products=structuredClone(MENU_PRODUCTS);
+      state.menuVersion=MENU_VERSION;
+      localStorage.setItem('aventura_pdv',JSON.stringify(state));
+      await window.sb.from('app_state').update({
+        state,
+        updated_at:new Date().toISOString(),
+        updated_by:window.currentProfile?.id||null
+      }).eq('id',1);
+    }else{
+      localStorage.setItem('aventura_pdv',JSON.stringify(state));
+    }
   }else{
     // Na primeira ativação, envia os dados que já existiam neste computador.
     const {error:upErr}=await window.sb.from('app_state').insert({
@@ -105,17 +147,41 @@ window.openNewTabModal=function(){
   if(window.hasPermission&&!window.hasPermission('comandas'))return alert('Sem permissão.');
 
   openModal('Nova comanda',`
-    <div class="single-comanda-form">
+    <div class="comanda-open-form">
       <label>
         <span>Número da comanda</span>
-        <input id="newTabNumber" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex.: 1" autofocus>
+        <input id="newTabNumber" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex.: 18" required>
       </label>
-      <small>Digite apenas o número. O sistema criará automaticamente “Comanda X”.</small>
+
+      <label>
+        <span>Responsável pela comanda</span>
+        <input id="newTabCustomer" type="text" placeholder="Ex.: Carlos" required>
+      </label>
+
+      <label>
+        <span>Quantidade de pessoas</span>
+        <input id="newTabPeople" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex.: 4" required>
+      </label>
+
+      <div class="automatic-fees-preview">
+        <strong>Lançamentos automáticos</strong>
+        <span>Couvert artístico: R$ 12,00 por pessoa</span>
+        <span>Taxa de sustentabilidade: R$ 2,00 por pessoa</span>
+        <strong id="feesPreviewTotal">Total automático: R$ 0,00</strong>
+      </div>
     </div>
+
     <div class="checkout">
       <button class="primary" onclick="createTab()">Criar comanda</button>
     </div>
   `);
+
+  const people=document.getElementById('newTabPeople');
+  people?.addEventListener('input',()=>{
+    const qtd=Math.max(0,Number(people.value)||0);
+    const el=document.getElementById('feesPreviewTotal');
+    if(el) el.textContent=`Total automático: ${money(qtd*14)}`;
+  });
 
   setTimeout(()=>document.getElementById('newTabNumber')?.focus(),50);
 };
@@ -123,35 +189,76 @@ window.openNewTabModal=function(){
 window.createTab=function(){
   const raw=document.getElementById('newTabNumber')?.value;
   const numeric=Number(raw);
+  const customer=document.getElementById('newTabCustomer')?.value.trim();
+  const people=Number(document.getElementById('newTabPeople')?.value);
 
-  if(!Number.isInteger(numeric) || numeric<=0){
-    return alert('Digite um número de comanda válido. Ex.: 1, 2, 10, 38.');
+  if(!Number.isInteger(numeric)||numeric<=0){
+    return alert('Digite um número de comanda válido.');
+  }
+  if(!customer){
+    return alert('Informe o nome do responsável pela comanda.');
+  }
+  if(!Number.isInteger(people)||people<=0){
+    return alert('Informe a quantidade de pessoas da comanda.');
   }
 
   const number=String(numeric);
-
-  // Comanda não pode ser duplicada no mesmo dia operacional.
   const today=new Date().toLocaleDateString('en-CA');
+
   const duplicate=state.tabs.some(t=>{
-    if(t.status==='CANCELADA') return false;
+    if(t.status==='CANCELADA')return false;
     const tabDate=new Date(t.createdAt).toLocaleDateString('en-CA');
-    return tabDate===today && String(Number(t.number))===number;
+    return tabDate===today&&String(Number(t.number))===number;
   });
 
   if(duplicate){
-    return alert(`A Comanda ${number} já existe hoje. Abra a comanda existente em vez de criar outra.`);
+    return alert(`A Comanda ${number} já existe hoje. Abra a comanda existente.`);
   }
 
+  const tabId=id();
+  const now=new Date().toISOString();
+
   state.tabs.push({
-    id:id(),
+    id:tabId,
     number,
-    customer:'',
+    customer,
+    people,
     status:'ABERTA',
-    createdAt:new Date().toISOString(),
+    createdAt:now,
     closedAt:null,
     total:0,
     createdBy:window.currentProfile?.id||null,
     createdByName:window.currentProfile?.full_name||'Usuário'
+  });
+
+  // Lançamentos obrigatórios automáticos da operação.
+  state.orders.push({
+    id:id(),
+    tabId,
+    items:[
+      {
+        productId:'taxa-couvert-artistico',
+        name:'Couvert artístico',
+        category:'TAXAS',
+        sector:'TAXAS',
+        price:12,
+        qty:people
+      },
+      {
+        productId:'taxa-sustentabilidade',
+        name:'Taxa de sustentabilidade',
+        category:'TAXAS',
+        sector:'TAXAS',
+        price:2,
+        qty:people
+      }
+    ],
+    total:people*14,
+    createdAt:now,
+    status:'ENVIADO',
+    automatic:true,
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Sistema'
   });
 
   save();
@@ -169,10 +276,23 @@ function renderTabModal(){
   const existing=state.orders.filter(o=>o.tabId===currentTabId&&o.status!=='CANCELADO');
   const historical=existing.reduce((s,o)=>s+o.total,0);
   const cartTotal=cart.reduce((s,l)=>s+l.qty*l.price,0);
-  const productButtons=state.products.map(p=>`<button class="product-btn" onclick="addProduct('${p.id}')"><strong>${p.name}</strong><small>${p.sector} • ${money(p.price)} • est. ${p.stock}</small></button>`).join('');
+  const categoryOrder=['ALMOÇO','PORÇÕES','BEBIDAS','DRINKS'];
+  const productButtons=categoryOrder.map(category=>{
+    const products=state.products.filter(p=>p.category===category);
+    if(!products.length)return '';
+    return `<div class="menu-category">
+      <div class="menu-category-title">${category}</div>
+      <div class="product-picker">
+        ${products.map(p=>`<button class="product-btn" onclick="addProduct('${p.id}')">
+          <strong>${p.name}</strong>
+          <small>${p.sector} • ${money(p.price)}</small>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
   const cartLines=cart.length?cart.map((l,i)=>`<div class="order-line"><span>${l.qty}x ${l.name}</span><strong>${money(l.qty*l.price)}</strong><button class="danger" onclick="removeCart(${i})">×</button></div>`).join(''):'<small>Nenhum item novo.</small>';
   const history=existing.length?existing.map(o=>`<div class="list-item"><div><strong>${new Date(o.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong><br><small>${o.items.map(i=>`${i.qty}x ${i.name}`).join(', ')}</small></div><strong>${money(o.total)}</strong></div>`).join(''):'<small>Sem pedidos enviados.</small>';
-  openModal(`Comanda ${tab.number}`,`<div class="panel-head"><div><strong>Comanda ${tab.number}</strong><br><small>Total já enviado: ${money(historical)}</small></div><span class="pill">${tab.status}</span></div><h4>Novo pedido</h4><div class="product-picker">${productButtons}</div><div class="order-lines">${cartLines}</div><div class="checkout"><strong>Novo pedido: ${money(cartTotal)}</strong><button class="primary" onclick="sendOrder()" ${cart.length?'':'disabled'}>Enviar e imprimir</button></div><h4>Pedidos enviados</h4><div class="list">${history}</div><div class="checkout">
+  openModal(`Comanda ${tab.number}`,`<div class="panel-head"><div><strong>${tab.customer||'Sem responsável'}</strong><br><small>${tab.people||1} pessoa(s) • Total já enviado: ${money(historical)}</small></div><span class="pill">${tab.status}</span></div><h4>Novo pedido</h4><div class="menu-catalog">${productButtons}</div><div class="order-lines">${cartLines}</div><div class="checkout"><strong>Novo pedido: ${money(cartTotal)}</strong><button class="primary" onclick="sendOrder()" ${cart.length?'':'disabled'}>Enviar e imprimir</button></div><h4>Pedidos enviados</h4><div class="list">${history}</div><div class="checkout">
       ${window.hasPermission && window.hasPermission('caixa')
         ? '<button class="primary" onclick="openCheckout()">Fechar comanda</button>'
         : '<span class="checkout-warning">Somente usuários com acesso ao Caixa podem fechar esta comanda.</span>'}
@@ -213,7 +333,8 @@ function receiptHtml(sector,items,tab,order){
     <span>${state.settings.boat}</span>
     <hr>
     <strong>COMANDA ${tab.number}</strong>
-    <span>${tab.customer||'Passageiro'}</span>
+    <span>Responsável: ${tab.customer||'Sem responsável'}</span>
+        <span>Pessoas: ${tab.people||1}</span>
     <span>${new Date(order.createdAt).toLocaleString('pt-BR')}</span>
     <hr>
     ${items.map(i=>`<div class="print-item"><b>${i.qty}x</b><span>${i.name}</span></div>`).join('')}
@@ -227,7 +348,7 @@ function showPrintPreview(order){
   const bar=order.items.filter(i=>i.sector==='BAR');
   const cozinha=order.items.filter(i=>i.sector==='COZINHA');
   openModal('Divisão para impressão',
-    `<div class="print-preview-note"><strong>PRÉVIA DE IMPRESSÃO</strong><span>As impressoras estão desativadas por enquanto. Esta é exatamente a divisão que será enviada futuramente.</span></div>
+    `<div class="print-preview-note"><strong>PRÉVIA DE IMPRESSÃO</strong><span>As impressoras estão desativadas por enquanto. Almoço/Porções vão para COZINHA e Bebidas/Drinks vão para BAR. Couvert e sustentabilidade ficam somente na conta do cliente.</span></div>
      <div class="print-preview-grid">
        ${bar.length?receiptHtml('BAR',bar,tab,order):'<div class="print-preview-empty"><strong>BAR</strong><span>Nenhum item para o bar.</span></div>'}
        ${cozinha.length?receiptHtml('COZINHA',cozinha,tab,order):'<div class="print-preview-empty"><strong>COZINHA</strong><span>Nenhum item para a cozinha.</span></div>'}
@@ -278,7 +399,7 @@ window.openCheckout=function(){
         <div>
           <span class="eyebrow">CONFERÊNCIA DA COMANDA</span>
           <h3>Comanda ${tab.number}</h3>
-          <p>${tab.customer||'Passageiro'}</p>
+          <p>${tab.customer||'Sem responsável'} • ${tab.people||1} pessoa(s)</p>
         </div>
         <div class="checkout-total-box">
           <span>Total a pagar</span>
@@ -338,7 +459,8 @@ window.printCustomerReceipt=function(){
         <strong>${state.settings.company}</strong>
         <span>${state.settings.boat}</span>
         <span>COMANDA ${tab.number}</span>
-        <span>${tab.customer||'Passageiro'}</span>
+        <span>Responsável: ${tab.customer||'Sem responsável'}</span>
+        <span>Pessoas: ${tab.people||1}</span>
       </div>
       <hr>
       ${items.map(i=>`
@@ -435,14 +557,14 @@ function renderAll(){
   const totalClosed=closed.reduce((s,t)=>s+t.total,0);
   const sectorSales=sector=>state.orders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector===sector).reduce((s,i)=>s+i.qty*i.price,0),0);
   document.getElementById('openTabs').textContent=open.length;document.getElementById('ordersToday').textContent=state.orders.length;document.getElementById('salesToday').textContent=money(totalClosed);document.getElementById('barSales').textContent=money(sectorSales('BAR'));document.getElementById('kitchenSales').textContent=money(sectorSales('COZINHA'));
-  document.getElementById('dashboardTabs').innerHTML=open.length?open.slice(0,6).map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Comanda ativa'}</small></div><button class="ghost" onclick="openTab('${t.id}')">Abrir</button></div>`).join(''):'<small>Nenhuma comanda aberta.</small>';
+  document.getElementById('dashboardTabs').innerHTML=open.length?open.slice(0,6).map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><button class="ghost" onclick="openTab('${t.id}')">Abrir</button></div>`).join(''):'<small>Nenhuma comanda aberta.</small>';
   const low=state.products.filter(p=>p.stock<=p.min);document.getElementById('criticalStock').innerHTML=low.length?low.map(p=>`<div class="list-item"><div><strong>${p.name}</strong><br><small>${p.sector}</small></div><strong class="low">${p.stock}</strong></div>`).join(''):'<small>Estoque dentro dos mínimos.</small>';
-  document.getElementById('tabsGrid').innerHTML=open.map(t=>{const total=state.orders.filter(o=>o.tabId===t.id&&o.status!=='CANCELADO').reduce((s,o)=>s+o.total,0);return `<article class="tab-card"><div class="panel-head"><div><h3>Comanda ${t.number}</h3><small>${t.customer||'Comanda ativa'}</small></div><span class="pill">ABERTA</span></div><div class="value">${money(total)}</div><button class="primary" onclick="openTab('${t.id}')">Lançar pedido</button></article>`}).join('')||'<small>Nenhuma comanda aberta.</small>';
+  document.getElementById('tabsGrid').innerHTML=open.map(t=>{const total=state.orders.filter(o=>o.tabId===t.id&&o.status!=='CANCELADO').reduce((s,o)=>s+o.total,0);return `<article class="tab-card"><div class="panel-head"><div><h3>Comanda ${t.number}</h3><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><span class="pill">ABERTA</span></div><div class="value">${money(total)}</div><button class="primary" onclick="openTab('${t.id}')">Lançar pedido</button></article>`}).join('')||'<small>Nenhuma comanda aberta.</small>';
   document.getElementById('productsBody').innerHTML=state.products.map(p=>`<tr><td><strong>${p.name}</strong></td><td>${p.sector}</td><td>${money(p.price)}</td><td class="${p.stock<=p.min?'low':''}">${p.stock}</td><td><button class="danger" onclick="deleteProduct('${p.id}')">Excluir</button></td></tr>`).join('');
   document.getElementById('stockCards').innerHTML=state.products.map(p=>`<article class="stock-card"><small>${p.sector}</small><h3>${p.name}</h3><strong class="${p.stock<=p.min?'low':''}">${p.stock}</strong><p>Mínimo: ${p.min}</p><button class="ghost" onclick="stockAdjust('${p.id}',1)">+ Entrada</button> <button class="ghost" onclick="stockAdjust('${p.id}',-1)">- Saída</button></article>`).join('');
   const byMethod=m=>state.payments.filter(p=>p.method===m).reduce((s,p)=>s+p.amount,0);
   document.getElementById('cashTotal').textContent=money(byMethod('DINHEIRO'));document.getElementById('pixTotal').textContent=money(byMethod('PIX'));document.getElementById('cardTotal').textContent=money(byMethod('CARTAO'));document.getElementById('receivedTotal').textContent=money(state.payments.reduce((s,p)=>s+p.amount,0));
-  document.getElementById('closedTabs').innerHTML=closed.length?closed.map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Comanda ativa'}</small></div><strong>${money(t.total)}</strong></div>`).join(''):'<small>Nenhuma comanda fechada.</small>';
+  document.getElementById('closedTabs').innerHTML=closed.length?closed.map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><strong>${money(t.total)}</strong></div>`).join(''):'<small>Nenhuma comanda fechada.</small>';
   document.getElementById('dailyReport').innerHTML=`<div class="report-row"><span>Comandas abertas</span><strong>${open.length}</strong></div><div class="report-row"><span>Comandas fechadas</span><strong>${closed.length}</strong></div><div class="report-row"><span>Pedidos</span><strong>${state.orders.length}</strong></div><div class="report-row"><span>Vendas BAR</span><strong>${money(sectorSales('BAR'))}</strong></div><div class="report-row"><span>Vendas COZINHA</span><strong>${money(sectorSales('COZINHA'))}</strong></div><div class="report-row"><span>Total recebido</span><strong>${money(state.payments.reduce((s,p)=>s+p.amount,0))}</strong></div>`;
   document.getElementById('companyName').value=state.settings.company;document.getElementById('boatName').value=state.settings.boat;document.getElementById('printBridgeUrl').value=state.settings.printBridge;
 }
