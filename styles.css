@@ -804,3 +804,100 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .mixed-payment-head{flex-direction:column}
   .mixed-payment-status{grid-template-columns:1fr}
 }
+
+
+/* Perfis visuais */
+.profile-select-box{
+  display:grid;
+  gap:12px;
+}
+.profile-card-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+.profile-choice{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  padding:15px;
+  text-align:left;
+  display:grid;
+  gap:5px;
+  cursor:pointer;
+  transition:.15s ease;
+}
+.profile-choice strong{
+  font-size:15px;
+}
+.profile-choice span{
+  font-size:11px;
+  color:var(--muted);
+}
+.profile-choice:hover{
+  border-color:#c3a6ee;
+  transform:translateY(-1px);
+}
+.profile-choice.active{
+  border-color:var(--brand);
+  background:#f2ebff;
+  box-shadow:0 0 0 2px rgba(108,43,217,.10);
+}
+.profile-choice.active strong{
+  color:var(--brand);
+}
+.role-access-preview,
+.access-detail-block{
+  display:grid;
+  gap:10px;
+  padding:13px;
+  border-radius:12px;
+  background:#f8f6fb;
+  border:1px solid #eee9f4;
+}
+.role-access-description{
+  font-size:12px;
+  color:var(--muted);
+}
+.role-access-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.role-access-tags span{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 9px;
+  border-radius:999px;
+  background:#fff;
+  border:1px solid var(--line);
+  color:#554c63;
+  font-size:11px;
+  font-weight:800;
+}
+.access-detail-title{
+  display:grid;
+  gap:3px;
+}
+.access-detail-title small{
+  color:var(--muted);
+}
+.user-disabled{
+  opacity:.65;
+}
+.user-identity{
+  display:grid;
+  gap:3px;
+}
+@media(max-width:750px){
+  .profile-card-grid{grid-template-columns:1fr}
+}
+
+
+/* Relatório diário PDF */
+.daily-report-toolbar .primary{
+  white-space:nowrap;
+}
+.report-row strong{
+  font-variant-numeric:tabular-nums;
+}

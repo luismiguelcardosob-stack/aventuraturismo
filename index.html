@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=payment19" />
+  <link rel="stylesheet" href="./styles.css?v=roles20" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -189,13 +189,27 @@
               <label><span>Senha inicial</span><input id="newUserPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
             </div>
             <div class="profile-select-box">
-              <label><span>Perfil do usuário</span>
-                <select id="newUserRole">
-                  <option value="GARCOM">Garçom — comandas e pedidos</option>
-                  <option value="GERENTE">Gerente — comandas, pedidos, Caixa e Estoque</option>
-                  <option value="GESTOR">Gestor — acesso operacional completo</option>
-                </select>
-              </label>
+              <strong>Perfil do usuário</strong>
+              <input id="newUserRole" type="hidden" value="GARCOM">
+
+              <div class="profile-card-grid">
+                <button type="button" class="profile-choice active" data-role-choice="GARCOM" onclick="selectNewUserRole('GARCOM')">
+                  <strong>Garçom</strong>
+                  <span>Comandas e pedidos</span>
+                </button>
+
+                <button type="button" class="profile-choice" data-role-choice="GERENTE" onclick="selectNewUserRole('GERENTE')">
+                  <strong>Gerente</strong>
+                  <span>Comandas, Caixa e Estoque</span>
+                </button>
+
+                <button type="button" class="profile-choice" data-role-choice="GESTOR" onclick="selectNewUserRole('GESTOR')">
+                  <strong>Gestor</strong>
+                  <span>Acesso operacional completo</span>
+                </button>
+              </div>
+
+              <div id="newRoleAccessPreview" class="role-access-preview"></div>
             </div>
             <div class="form-actions">
               <button type="button" class="ghost" onclick="toggleCreateUser(false)">Cancelar</button>
@@ -221,8 +235,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=usersfix18"></script>
-  <script src="./app.js?v=payment19"></script>
+  <script src="./auth.js?v=roles20"></script>
+  <script src="./app.js?v=pdf21"></script>
 </body>
 </html>

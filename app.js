@@ -1188,43 +1188,314 @@ function getTodayOperationalData(){
 
 window.downloadDailyReport=function(){
   if(!isGestor()) return alert('Somente MASTER ou GESTOR podem baixar o relatório completo do dia.');
+
+  if(!window.jspdf?.jsPDF){
+    alert('O módulo de PDF ainda não carregou. Atualize a página e tente novamente.');
+    return;
+  }
+
   const d=getTodayOperationalData();
-  const rows=[
-    ['AVENTURA TURISMO - RELATÓRIO DO DIA'],
-    ['Data',new Date().toLocaleDateString('pt-BR')],
-    ['Barco',state.settings.boat],[],
-    ['RESUMO OPERACIONAL'],
-    ['Pessoas registradas',d.people],
-    ['Comandas abertas',d.open.length],
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+
+  const pageW=210;
+  const pageH=297;
+  const margin=14;
+  const contentW=pageW-(margin*2);
+
+  const purple=[76,35,107];
+  const purple2=[112,45,210];
+  const dark=[38,35,45];
+  const muted=[105,100,115];
+  const soft=[247,244,250];
+  const line=[226,220,232];
+  const green=[29,129,86];
+  const orange=[217,135,35];
+
+  const brl=value=>Number(value||0).toLocaleString('pt-BR',{
+    style:'currency',
+    currency:'BRL'
+  });
+
+  const text=(value,x,y,size=9,style='normal',color=dark,align='left')=>{
+    doc.setFont('helvetica',style);
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    doc.text(String(value??''),x,y,{align});
+  };
+
+  const roundedBox=(x,y,w,h,fill=soft,r=3)=>{
+    doc.setFillColor(...fill);
+    doc.roundedRect(x,y,w,h,r,r,'F');
+  };
+
+  const addFooter=()=>{
+    const pages=doc.getNumberOfPages();
+    for(let i=1;i<=pages;i++){
+      doc.setPage(i);
+      doc.setDrawColor(...line);
+      doc.line(margin,pageH-12,pageW-margin,pageH-12);
+      text('Aventura Turismo - Capitão Gancho',margin,pageH-7,7,'normal',muted);
+      text(`Página ${i} de ${pages}`,pageW-margin,pageH-7,7,'normal',muted,'right');
+    }
+  };
+
+  const ensureSpace=(needed,y)=>{
+    if(y+needed>pageH-20){
+      doc.addPage();
+      return 18;
+    }
+    return y;
+  };
+
+  // HEADER
+  doc.setFillColor(...purple);
+  doc.rect(0,0,pageW,34,'F');
+  doc.setFillColor(...purple2);
+  doc.roundedRect(margin,8,18,18,4,4,'F');
+  text('AT',margin+9,20,12,'bold',[255,255,255],'center');
+  text('AVENTURA TURISMO',margin+24,14,10,'bold',[255,255,255]);
+  text(state.settings.boat||'Capitão Gancho',margin+24,21,15,'bold',[255,255,255]);
+  text('Relatório operacional do dia',margin+24,27,8,'normal',[225,213,238]);
+
+  text(new Date().toLocaleDateString('pt-BR',{
+    weekday:'long',day:'2-digit',month:'long',year:'numeric'
+  }),pageW-margin,15,8,'normal',[255,255,255],'right');
+  text(`Gerado às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`,
+    pageW-margin,22,7,'normal',[225,213,238],'right');
+
+  let y=43;
+
+  // SUMMARY CARDS
+  text('RESUMO DO DIA',margin,y,10,'bold',purple);
+  y+=5;
+
+  const cards=[
+    ['Pessoas',d.people],
     ['Comandas fechadas',d.closed.length],
-    ['Tempo médio de comanda (min)',d.avgDuration.toFixed(1)],
-    ['Ticket médio por comanda',d.avgTicket.toFixed(2)],
-    ['Média por pessoa',d.avgPerPerson.toFixed(2)],[],
-    ['VENDAS'],
-    ['Produtos/consumos',d.productSales.toFixed(2)],
-    ['BAR',d.barSales.toFixed(2)],
-    ['COZINHA',d.kitchenSales.toFixed(2)],
-    ['EXTRAS',d.extrasSales.toFixed(2)],
-    ['Couvert artístico',d.couvert.toFixed(2)],
-    ['Taxa de sustentabilidade',d.sustentabilidade.toFixed(2)],
-    ['Taxa de serviço 10%',d.serviceFee.toFixed(2)],
-    ['TOTAL RECEBIDO',d.totalReceived.toFixed(2)],[],
-    ['FORMAS DE PAGAMENTO'],
-    ['PIX',d.pix.toFixed(2)],['Dinheiro',d.cash.toFixed(2)],['Cartão',d.card.toFixed(2)],[],
-    ['PRODUTOS VENDIDOS'],['Produto','Setor','Quantidade','Total']
+    ['Ticket médio',brl(d.avgTicket)],
+    ['Total recebido',brl(d.totalReceived)]
   ];
-  d.products.forEach(p=>rows.push([p.name,p.sector,p.qty,p.total.toFixed(2)]));
-  rows.push([],['COMANDAS'],['Comanda','Responsável','Pessoas','Abertura','Fechamento','Status','Total']);
-  d.todaysTabs.slice().sort((a,b)=>Number(a.number)-Number(b.number)).forEach(t=>rows.push([
-    t.number,t.customer||'',t.people||0,
-    new Date(t.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-    t.closedAt?new Date(t.closedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'',
-    t.status,Number(t.total||0).toFixed(2)
-  ]));
-  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\r\n');
-  const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob); const a=document.createElement('a');
-  a.href=url; a.download=`aventura-turismo-relatorio-${d.today}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+
+  const gap=3;
+  const cardW=(contentW-(gap*3))/4;
+  cards.forEach((c,i)=>{
+    const x=margin+i*(cardW+gap);
+    roundedBox(x,y,cardW,21,[248,246,251],3);
+    text(c[0],x+4,y+7,7,'normal',muted);
+    text(c[1],x+4,y+15,10,'bold',dark);
+  });
+  y+=28;
+
+  // OPERATION DATA
+  text('OPERAÇÃO',margin,y,10,'bold',purple);
+  y+=5;
+  roundedBox(margin,y,contentW,25,[250,249,252],3);
+
+  const op=[
+    ['Comandas abertas',d.open.length],
+    ['Tempo médio',`${d.avgDuration.toFixed(0)} min`],
+    ['Média por pessoa',brl(d.avgPerPerson)],
+    ['Produtos/consumos',brl(d.productSales)]
+  ];
+  op.forEach((item,i)=>{
+    const colW=contentW/4;
+    const x=margin+i*colW;
+    if(i>0){
+      doc.setDrawColor(...line);
+      doc.line(x,y+5,x,y+20);
+    }
+    text(item[0],x+4,y+8,7,'normal',muted);
+    text(item[1],x+4,y+17,9,'bold',dark);
+  });
+  y+=32;
+
+  // REVENUE BY SECTOR - bars
+  text('VENDAS POR SETOR',margin,y,10,'bold',purple);
+  y+=6;
+
+  const sectorData=[
+    ['BAR',d.barSales,purple2],
+    ['COZINHA',d.kitchenSales,orange],
+    ['EXTRAS',d.extrasSales,green]
+  ];
+  const maxSector=Math.max(...sectorData.map(x=>x[1]),1);
+
+  sectorData.forEach(([label,value,color])=>{
+    text(label,margin,y+4,8,'bold',dark);
+    text(brl(value),pageW-margin,y+4,8,'bold',dark,'right');
+
+    doc.setFillColor(239,235,244);
+    doc.roundedRect(margin+30,y,contentW-60,5,2,2,'F');
+
+    const barW=(contentW-60)*(Number(value)/maxSector);
+    if(barW>0){
+      doc.setFillColor(...color);
+      doc.roundedRect(margin+30,y,Math.max(barW,2),5,2,2,'F');
+    }
+    y+=10;
+  });
+  y+=4;
+
+  // PAYMENT METHODS
+  text('FORMAS DE PAGAMENTO',margin,y,10,'bold',purple);
+  y+=6;
+
+  const payData=[
+    ['PIX',d.pix,[80,126,209]],
+    ['Cartão',d.card,[112,45,210]],
+    ['Dinheiro',d.cash,[29,129,86]]
+  ];
+  const maxPay=Math.max(...payData.map(x=>x[1]),1);
+
+  payData.forEach(([label,value,color])=>{
+    text(label,margin,y+4,8,'bold',dark);
+    text(brl(value),pageW-margin,y+4,8,'bold',dark,'right');
+    doc.setFillColor(239,235,244);
+    doc.roundedRect(margin+30,y,contentW-60,5,2,2,'F');
+
+    const barW=(contentW-60)*(Number(value)/maxPay);
+    if(barW>0){
+      doc.setFillColor(...color);
+      doc.roundedRect(margin+30,y,Math.max(barW,2),5,2,2,'F');
+    }
+    y+=10;
+  });
+  y+=4;
+
+  // TAXES / FEES
+  y=ensureSpace(38,y);
+  text('TAXAS E ADICIONAIS',margin,y,10,'bold',purple);
+  y+=6;
+
+  const feeData=[
+    ['Couvert artístico',d.couvert],
+    ['Sustentabilidade',d.sustentabilidade],
+    ['Taxa de serviço 10%',d.serviceFee]
+  ];
+  const feeW=(contentW-6)/3;
+  feeData.forEach((item,i)=>{
+    const x=margin+i*(feeW+3);
+    roundedBox(x,y,feeW,20,[248,246,251],3);
+    text(item[0],x+4,y+7,7,'normal',muted);
+    text(brl(item[1]),x+4,y+15,9,'bold',dark);
+  });
+  y+=27;
+
+  // PRODUCTS TABLE
+  y=ensureSpace(45,y);
+  text('PRODUTOS VENDIDOS',margin,y,10,'bold',purple);
+  y+=4;
+
+  const productRows=d.products.map(p=>[
+    p.name,
+    p.sector,
+    String(p.qty),
+    brl(p.total)
+  ]);
+
+  if(doc.autoTable){
+    doc.autoTable({
+      startY:y,
+      head:[['Produto','Setor','Qtd.','Total']],
+      body:productRows.length?productRows:[['Nenhum produto vendido','','','']],
+      margin:{left:margin,right:margin,bottom:18},
+      theme:'grid',
+      styles:{
+        font:'helvetica',
+        fontSize:7.5,
+        cellPadding:2.3,
+        lineColor:line,
+        lineWidth:.2,
+        textColor:dark
+      },
+      headStyles:{
+        fillColor:purple,
+        textColor:[255,255,255],
+        fontStyle:'bold'
+      },
+      alternateRowStyles:{
+        fillColor:[249,247,251]
+      },
+      columnStyles:{
+        2:{halign:'center',cellWidth:16},
+        3:{halign:'right',cellWidth:30},
+        1:{cellWidth:25}
+      }
+    });
+    y=doc.lastAutoTable.finalY+9;
+  }
+
+  // COMMANDS TABLE
+  y=ensureSpace(45,y);
+  text('COMANDAS DO DIA',margin,y,10,'bold',purple);
+  y+=4;
+
+  const commandRows=d.todaysTabs
+    .slice()
+    .sort((a,b)=>Number(a.number)-Number(b.number))
+    .map(t=>[
+      `#${t.number}`,
+      t.customer||'-',
+      String(t.people||0),
+      new Date(t.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      t.closedAt?new Date(t.closedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'-',
+      t.status,
+      brl(t.total||0)
+    ]);
+
+  if(doc.autoTable){
+    doc.autoTable({
+      startY:y,
+      head:[['Comanda','Responsável','Pessoas','Abertura','Fechamento','Status','Total']],
+      body:commandRows.length?commandRows:[['Nenhuma comanda','','','','','','']],
+      margin:{left:margin,right:margin,bottom:18},
+      theme:'grid',
+      styles:{
+        font:'helvetica',
+        fontSize:6.7,
+        cellPadding:2,
+        lineColor:line,
+        lineWidth:.2,
+        textColor:dark
+      },
+      headStyles:{
+        fillColor:purple,
+        textColor:[255,255,255],
+        fontStyle:'bold'
+      },
+      alternateRowStyles:{
+        fillColor:[249,247,251]
+      },
+      columnStyles:{
+        0:{cellWidth:18},
+        2:{halign:'center',cellWidth:15},
+        3:{halign:'center',cellWidth:19},
+        4:{halign:'center',cellWidth:19},
+        5:{halign:'center',cellWidth:20},
+        6:{halign:'right',cellWidth:28}
+      }
+    });
+  }
+
+  // FINAL TOTAL BOX
+  let finalY=(doc.lastAutoTable?.finalY||y)+10;
+  finalY=ensureSpace(28,finalY);
+
+  doc.setFillColor(...purple);
+  doc.roundedRect(margin,finalY,contentW,22,4,4,'F');
+  text('TOTAL RECEBIDO NO DIA',margin+6,finalY+9,8,'bold',[231,221,241]);
+  text(brl(d.totalReceived),pageW-margin-6,finalY+14,16,'bold',[255,255,255],'right');
+
+  addFooter();
+
+  const safeBoat=(state.settings.boat||'capitao-gancho')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-zA-Z0-9]+/g,'-')
+    .replace(/^-|-$/g,'')
+    .toLowerCase();
+
+  doc.save(`relatorio-${safeBoat}-${d.today}.pdf`);
 };
 
 function renderAll(){
@@ -1251,7 +1522,7 @@ function renderAll(){
   document.getElementById('dailyReport').innerHTML=`
     <div class="daily-report-toolbar">
       <div><strong>Resumo operacional de hoje</strong><small>${new Date().toLocaleDateString('pt-BR')}</small></div>
-      ${isGestor()?'<button class="primary" onclick="downloadDailyReport()">Baixar relatório do dia</button>':''}
+      ${isGestor()?'<button class="primary" onclick="downloadDailyReport()">Baixar relatório em PDF</button>':''}
     </div>
     <div class="report-row"><span>Pessoas registradas</span><strong>${daily.people}</strong></div>
     <div class="report-row"><span>Comandas abertas</span><strong>${daily.open.length}</strong></div>

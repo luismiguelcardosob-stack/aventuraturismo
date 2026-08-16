@@ -327,6 +327,53 @@
     });
   }
 
+
+  const ROLE_ACCESS = {
+    GARCOM: {
+      label:"Garçom",
+      accesses:["Comandas","Abrir comanda","Lançar pedidos","Fechar comanda"],
+      description:"Operação de atendimento. Não acessa Caixa, Estoque ou Relatórios."
+    },
+    GERENTE: {
+      label:"Gerente",
+      accesses:["Comandas","Pedidos","Caixa","Estoque","Relatórios","Gerenciar itens enviados"],
+      description:"Controle operacional do dia, incluindo fechamento, caixa e estoque."
+    },
+    GESTOR: {
+      label:"Gestor",
+      accesses:["Painel","Comandas","Pedidos","Produtos","Estoque","Caixa","Relatórios","Configurações","Gerenciar itens enviados"],
+      description:"Acesso operacional completo ao sistema."
+    },
+    MASTER: {
+      label:"MASTER",
+      accesses:["Acesso total","Usuários e Acessos","Criação e alteração de perfis","Configurações administrativas"],
+      description:"Administrador máximo do sistema."
+    }
+  };
+
+  function roleAccessHtml(role){
+    const r=ROLE_ACCESS[role]||ROLE_ACCESS.GARCOM;
+    return `
+      <div class="role-access-description">${r.description}</div>
+      <div class="role-access-tags">
+        ${r.accesses.map(a=>`<span>${esc(a)}</span>`).join("")}
+      </div>`;
+  }
+
+  window.selectNewUserRole=function(role){
+    if(!["GARCOM","GERENTE","GESTOR"].includes(role)) return;
+
+    const hidden=$("newUserRole");
+    if(hidden) hidden.value=role;
+
+    document.querySelectorAll("[data-role-choice]").forEach(btn=>{
+      btn.classList.toggle("active",btn.dataset.roleChoice===role);
+    });
+
+    const preview=$("newRoleAccessPreview");
+    if(preview) preview.innerHTML=roleAccessHtml(role);
+  };
+
   window.loadUsers=async function(){
     const box=$("usersAccessList");
     if(!box || window.currentProfile?.role!=="MASTER") return;
@@ -346,27 +393,20 @@
         return;
       }
 
-      const roleLabels={
-        MASTER:"MASTER",
-        GESTOR:"GESTOR",
-        GERENTE:"GERENTE",
-        GARCOM:"GARÇOM",
-        USER:"GARÇOM"
-      };
-
       box.innerHTML=data.map(u=>{
         const master=u.role==="MASTER";
         const normalizedRole=u.role==="USER"?"GARCOM":u.role;
+        const roleInfo=ROLE_ACCESS[normalizedRole]||ROLE_ACCESS.GARCOM;
 
-        return `<article class="user-access-card">
+        return `<article class="user-access-card ${u.active===false?'user-disabled':''}">
           <div class="user-access-head">
-            <div>
+            <div class="user-identity">
               <strong>${esc(u.full_name||"Usuário")}</strong>
               <small>${esc(u.email||"")}</small>
             </div>
 
             <div class="user-access-actions">
-              <span class="pill">${roleLabels[normalizedRole]||normalizedRole}</span>
+              <span class="pill">${esc(roleInfo.label)}</span>
 
               ${master ? "" : `
                 <select class="role-select" onchange="setUserRole('${u.id}',this.value)">
@@ -385,16 +425,14 @@
             </div>
           </div>
 
-          <div class="profile-access-summary">
-            ${
-              normalizedRole==="GARCOM"
-                ? "Comandas e pedidos. Pode abrir e fechar comandas."
-                : normalizedRole==="GERENTE"
-                  ? "Comandas, pedidos, Caixa e Estoque."
-                  : normalizedRole==="GESTOR"
-                    ? "Acesso operacional completo."
-                    : "Administrador MASTER do sistema."
-            }
+          <div class="access-detail-block">
+            <div class="access-detail-title">
+              <strong>O que este usuário pode acessar</strong>
+              <small>${esc(roleInfo.description)}</small>
+            </div>
+            <div class="role-access-tags">
+              ${roleInfo.accesses.map(a=>`<span>${esc(a)}</span>`).join("")}
+            </div>
           </div>
         </article>`;
       }).join("");
@@ -434,8 +472,10 @@
     const panel=$("createUserPanel");
     if(!panel) return;
     panel.classList.toggle("hidden",!show);
-    if(show) $("newUserName")?.focus();
-    else {
+    if(show){
+      selectNewUserRole("GARCOM");
+      $("newUserName")?.focus();
+    } else {
       $("createUserForm")?.reset();
       const dash=document.querySelector('[data-new-perm="dashboard"]');
       if(dash) dash.checked=true;
