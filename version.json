@@ -1,6 +1,6 @@
 {
-  "version": "v.90M",
-  "notes": "Atualização automática: GitHub/site remoto passa a ser a fonte oficial dos arquivos.",
+  "version": "v.90N",
+  "notes": "Novo visual marítimo Capitão Gancho.",
   "files": [
     {
       "path": "public/app.js",
