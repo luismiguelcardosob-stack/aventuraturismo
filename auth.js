@@ -1,4 +1,66 @@
 (() => {
+  const host=location.hostname;
+  const isPrivateHost=
+    host==='localhost' ||
+    host==='127.0.0.1' ||
+    /^192\.168\./.test(host) ||
+    /^10\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+
+  if(!isPrivateHost) return;
+
+  window.__AVENTURA_LOCAL_AUTH__=true;
+
+  const ALL={
+    dashboard:true,comandas:true,vouchers:true,agentes:true,comissoes:true,
+    produtos:true,estoque:true,caixa:true,relatorios:true,configuracoes:true
+  };
+
+  window.currentProfile={
+    id:'offline-master',
+    full_name:'Administrador Offline',
+    email:'offline@local',
+    role:'MASTER',
+    active:true,
+    permissions:{...ALL}
+  };
+
+  window.hasPermission=()=>true;
+
+  const showLocalApp=()=>{
+    document.body.classList.remove('recovering');
+    document.body.classList.add('authenticated');
+    document.getElementById('loginScreen')?.classList.add('hidden');
+    document.getElementById('recoveryScreen')?.classList.add('hidden');
+    document.getElementById('appShell')?.classList.remove('hidden');
+
+    const user=document.getElementById('loggedUser');
+    if(user) user.textContent='Administrador Offline • MASTER';
+
+    document.querySelectorAll('[data-permission],.master-only').forEach(el=>{
+      el.classList.remove('permission-hidden');
+    });
+
+    setTimeout(()=>{
+      window.dispatchEvent(new CustomEvent('aventura-auth-ready',{
+        detail:window.currentProfile
+      }));
+    },0);
+  };
+
+  window.loadUsers=()=>{};
+  window.toggleCreateUser=()=>alert('Usuários locais permanecem em modo MASTER. O acesso remoto usa o login Supabase.');
+  window.createSystemUser=e=>{e?.preventDefault?.();alert('Cadastre usuários pelo ambiente online/Supabase.');};
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',showLocalApp);
+  }else{
+    showLocalApp();
+  }
+})();
+
+(() => {
+  if(window.__AVENTURA_LOCAL_AUTH__) return;
   const cfg = window.AVENTURA_SUPABASE || {};
   if (!cfg.url || !cfg.anonKey) {
     alert("Supabase não configurado.");

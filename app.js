@@ -1,6 +1,79 @@
+window.AVENTURA_VERSION='v.90M';
+console.log('Aventura Turismo • v.90M');
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const id=()=>crypto.randomUUID();
+const id=()=>{
+  if(globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes=new Uint8Array(16);
+  if(globalThis.crypto?.getRandomValues){
+    globalThis.crypto.getRandomValues(bytes);
+  }else{
+    for(let i=0;i<16;i++) bytes[i]=Math.floor(Math.random()*256);
+  }
+  bytes[6]=(bytes[6]&0x0f)|0x40;
+  bytes[8]=(bytes[8]&0x3f)|0x80;
+  const h=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+};
 
+
+function ensureActionToast(){
+  let el=document.getElementById('actionToast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='actionToast';
+    el.className='action-toast hidden';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+let actionToastTimer=null;
+function showActionToast(message,type='info',duration=2600){
+  const el=ensureActionToast();
+  clearTimeout(actionToastTimer);
+  el.textContent=message;
+  el.className=`action-toast ${type}`;
+  actionToastTimer=setTimeout(()=>el.classList.add('hidden'),duration);
+}
+
+function setButtonBusy(button,busy,busyText='Carregando...'){
+  if(!button) return;
+  if(busy){
+    if(button.dataset.busy==='1') return;
+    button.dataset.busy='1';
+    button.dataset.originalText=button.textContent;
+    button.disabled=true;
+    button.classList.add('is-loading');
+    button.textContent=busyText;
+  }else{
+    button.dataset.busy='0';
+    button.disabled=false;
+    button.classList.remove('is-loading');
+    if(button.dataset.originalText) button.textContent=button.dataset.originalText;
+  }
+}
+
+window.addEventListener('error',event=>{
+  const msg=event?.error?.message||event?.message||'Erro inesperado.';
+  console.error('Erro capturado pela interface:',event?.error||event);
+  showActionToast(`Erro: ${msg}`,'error',5000);
+});
+
+window.addEventListener('unhandledrejection',event=>{
+  const reason=event?.reason;
+  const msg=reason?.message||String(reason||'Falha inesperada.');
+  console.error('Promessa rejeitada:',reason);
+  showActionToast(`Erro: ${msg}`,'error',5000);
+});
+
+document.addEventListener('click',event=>{
+  const button=event.target.closest('button');
+  if(!button || button.disabled) return;
+  button.classList.add('button-click-feedback');
+  setTimeout(()=>button.classList.remove('button-click-feedback'),180);
+});
+
+const DEFAULT_PASSAGE_PRICE=110;
 const MENU_VERSION='2026-08-cardapio-02';
 const MENU_PRODUCTS=[
     {id:"almoco-peixe-camarao",name:"Filé de peixe ao molho de camarão",category:"ALMOÇO",sector:"COZINHA",price:70,stock:999,min:0},
@@ -40,16 +113,89 @@ const MENU_PRODUCTS=[
     {id:"extra-doce-marinheiros",name:"Doce dos Marinheiros",category:"EXTRAS",sector:"BAR",price:10,stock:999,min:0}
   ];
 
+const EXAMPLE_AGENTS=[
+  {id:'agent-joao',name:'João',partner:'Pousada A',commissionPercent:20,bankName:'',bankAgency:'',bankAccount:'',pixKey:'',active:true,example:true},
+  {id:'agent-maria',name:'Maria',partner:'Pousada B',commissionPercent:30,bankName:'',bankAgency:'',bankAccount:'',pixKey:'',active:true,example:true},
+  {id:'agent-carlos',name:'Carlos',partner:'Pousada C',commissionPercent:20,bankName:'',bankAgency:'',bankAccount:'',pixKey:'',active:true,example:true},
+  {id:'agent-example-4',name:'Agente Exemplo 4',partner:'Pousada D',commissionPercent:0,bankName:'',bankAgency:'',bankAccount:'',pixKey:'',active:true,example:true},
+  {id:'agent-example-5',name:'Agente Exemplo 5',partner:'Pousada E',commissionPercent:0,bankName:'',bankAgency:'',bankAccount:'',pixKey:'',active:true,example:true}
+];
+
 const defaults={
   menuVersion:MENU_VERSION,
   products:structuredClone(MENU_PRODUCTS),
-  tabs:[],orders:[],payments:[],vouchers:[],voucherPayments:[],
+  tabs:[],orders:[],payments:[],vouchers:[],voucherPayments:[],agents:structuredClone(EXAMPLE_AGENTS),commissionPayments:[],
   settings:{company:'Aventura Turismo',boat:'Capitão Gancho',printBridge:'http://localhost:8787'}
 };
 
 let state=JSON.parse(localStorage.getItem('aventura_pdv')||'null')||defaults;
 state.vouchers=Array.isArray(state.vouchers)?state.vouchers:[];
 state.voucherPayments=Array.isArray(state.voucherPayments)?state.voucherPayments:[];
+state.agents=Array.isArray(state.agents)?state.agents:[];
+if(!state.agents.length){ state.agents=structuredClone(EXAMPLE_AGENTS); }
+state.commissionPayments=Array.isArray(state.commissionPayments)?state.commissionPayments:[];
+
+
+let selectedOperationalDate=new Date().toLocaleDateString('en-CA');
+
+function dateKeyFrom(value){
+  if(!value) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return '';
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function selectedDateIsToday(){
+  return selectedOperationalDate===new Date().toLocaleDateString('en-CA');
+}
+
+function tabOperationalDate(tab){
+  return tab.businessDate || dateKeyFrom(tab.createdAt);
+}
+
+function getDayTabs(dateKey=selectedOperationalDate){
+  return state.tabs.filter(t=>tabOperationalDate(t)===dateKey);
+}
+
+function getDayPayments(dateKey=selectedOperationalDate){
+  const ids=new Set(getDayTabs(dateKey).map(t=>t.id));
+  return state.payments.filter(p=>ids.has(p.tabId));
+}
+
+function getDayOrders(dateKey=selectedOperationalDate){
+  const ids=new Set(getDayTabs(dateKey).map(t=>t.id));
+  return state.orders.filter(o=>ids.has(o.tabId));
+}
+
+function canOperateSelectedDay(){
+  if(window.currentProfile?.role==='MASTER') return true;
+  return selectedDateIsToday();
+}
+
+window.changeOperationalDate=function(dateKey){
+  if(window.currentProfile?.role!=='MASTER'){
+    alert('Somente o MASTER pode navegar ou operar outros dias.');
+    selectedOperationalDate=new Date().toLocaleDateString('en-CA');
+  }else if(dateKey){
+    selectedOperationalDate=dateKey;
+  }
+  renderAll();
+};
+
+window.shiftOperationalDay=function(delta){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode navegar entre os dias.');
+  }
+  const d=new Date(`${selectedOperationalDate}T12:00:00`);
+  d.setDate(d.getDate()+delta);
+  selectedOperationalDate=dateKeyFrom(d);
+  renderAll();
+};
+
 let currentTabId=null;
 let cart=[];
 let lastSentOrderId=null;
@@ -67,10 +213,181 @@ let savingCloud=false;
 let pendingCloudSave=false;
 let realtimeChannel=null;
 
+
+let remoteStatusTimer=null;
+
+function setRemoteBadge(text,mode='neutral'){
+  const el=document.getElementById('remoteSyncStatus');
+  if(!el) return;
+  el.textContent=text;
+  el.dataset.mode=mode;
+}
+
+async function refreshRemoteSyncStatus(){
+  if(!localServerReady) return;
+  try{
+    const res=await fetch('/api/remote-status',{cache:'no-store'});
+    if(!res.ok) throw new Error('status indisponível');
+    const data=await res.json();
+
+    if(!data.enabled){
+      setRemoteBadge('Nuvem • não configurada','warning');
+      return;
+    }
+
+    if(data.connected){
+      const suffix=data.lastSyncAt
+        ? ` • ${new Date(data.lastSyncAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`
+        : '';
+      setRemoteBadge(`Nuvem • sincronizada${suffix}`,'ok');
+    }else{
+      setRemoteBadge('Nuvem • sem internet / aguardando','warning');
+    }
+  }catch(_){
+    setRemoteBadge('Nuvem • status indisponível','error');
+  }
+}
+
+function startRemoteStatusMonitor(){
+  if(remoteStatusTimer) clearInterval(remoteStatusTimer);
+  refreshRemoteSyncStatus();
+  remoteStatusTimer=setInterval(refreshRemoteSyncStatus,5000);
+}
+
+let localServerReady=false;
+let localServerSaving=false;
+let localServerPendingSave=false;
+let localServerUpdatedAt=null;
+let localServerPoll=null;
+
+function isHttpApp(){
+  return location.protocol==='http:' || location.protocol==='https:';
+}
+
+async function detectLocalServer(){
+  if(!isHttpApp()) return false;
+  try{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),1800);
+    const res=await fetch('/api/health',{cache:'no-store',signal:controller.signal});
+    clearTimeout(timeout);
+    if(!res.ok) return false;
+    const data=await res.json();
+    return Boolean(data?.ok && data?.database==='SQLite');
+  }catch(_){
+    return false;
+  }
+}
+
+function normalizeLoadedState(incoming){
+  if(!incoming || typeof incoming!=='object') return;
+  state=incoming;
+  state.products=Array.isArray(state.products)&&state.products.length?state.products:structuredClone(MENU_PRODUCTS);
+  state.tabs=Array.isArray(state.tabs)?state.tabs:[];
+  state.orders=Array.isArray(state.orders)?state.orders:[];
+  state.payments=Array.isArray(state.payments)?state.payments:[];
+  state.vouchers=Array.isArray(state.vouchers)?state.vouchers:[];
+  state.voucherPayments=Array.isArray(state.voucherPayments)?state.voucherPayments:[];
+  state.agents=Array.isArray(state.agents)?state.agents:[];
+  if(!state.agents.length) state.agents=structuredClone(EXAMPLE_AGENTS);
+  state.commissionPayments=Array.isArray(state.commissionPayments)?state.commissionPayments:[];
+  state.settings=state.settings||structuredClone(defaults.settings);
+  if(state.menuVersion!==MENU_VERSION){
+    state.products=structuredClone(MENU_PRODUCTS);
+    state.menuVersion=MENU_VERSION;
+  }
+}
+
+async function loadLocalServerState(){
+  const res=await fetch('/api/state',{cache:'no-store'});
+  if(!res.ok) throw new Error('Não foi possível carregar o banco local.');
+  const data=await res.json();
+
+  if(data?.state && Object.keys(data.state).length){
+    normalizeLoadedState(data.state);
+    localStorage.setItem('aventura_pdv',JSON.stringify(state));
+  }else{
+    // Primeiro uso do servidor: envia o estado existente deste navegador.
+    await saveLocalServerState();
+  }
+
+  localServerUpdatedAt=data?.updatedAt||localServerUpdatedAt;
+  localServerReady=true;
+  renderAll();
+}
+
+async function saveLocalServerState(){
+  if(!isHttpApp()) return;
+  if(localServerSaving){
+    localServerPendingSave=true;
+    return;
+  }
+
+  localServerSaving=true;
+  try{
+    const res=await fetch('/api/state',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({state})
+    });
+    if(!res.ok) throw new Error('Falha ao salvar no SQLite.');
+    const data=await res.json();
+    localServerUpdatedAt=data?.updatedAt||localServerUpdatedAt;
+  }catch(err){
+    console.error('Erro ao salvar no servidor local:',err);
+    const status=document.getElementById('connectionStatus');
+    if(status) status.textContent='Servidor local • erro ao salvar';
+    throw err;
+  }finally{
+    localServerSaving=false;
+    if(localServerPendingSave){
+      localServerPendingSave=false;
+      saveLocalServerState();
+    }
+  }
+}
+
+async function pollLocalServer(){
+  if(!localServerReady || localServerSaving) return;
+  try{
+    const res=await fetch('/api/state',{cache:'no-store'});
+    if(!res.ok) return;
+    const data=await res.json();
+    if(!data?.updatedAt || data.updatedAt===localServerUpdatedAt) return;
+
+    normalizeLoadedState(data.state||{});
+    localServerUpdatedAt=data.updatedAt;
+    localStorage.setItem('aventura_pdv',JSON.stringify(state));
+    renderAll();
+
+    if(currentTabId && !document.getElementById('modal')?.classList.contains('hidden')){
+      const exists=state.tabs.some(t=>t.id===currentTabId);
+      if(exists && !orderReviewLocked) renderTabModal();
+      if(!exists) closeModal();
+    }
+  }catch(err){
+    console.error('Erro na sincronização local:',err);
+  }
+}
+
+function startLocalServerSync(){
+  if(localServerPoll) clearInterval(localServerPoll);
+  localServerPoll=setInterval(pollLocalServer,1000);
+}
+
 function save(){
   localStorage.setItem('aventura_pdv',JSON.stringify(state));
   renderAll();
-  if(cloudReady) saveCloudState();
+
+  if(localServerReady){
+    return saveLocalServerState();
+  }
+
+  if(cloudReady){
+    return saveCloudState();
+  }
+
+  return Promise.resolve();
 }
 
 async function saveCloudState(){
@@ -131,6 +448,7 @@ function startRealtimeSync(){
         const remote=payload.new?.state;
         if(!remote) return;
         state=remote;
+        setRemoteBadge('Nuvem • atualização recebida','ok');
         localStorage.setItem('aventura_pdv',JSON.stringify(state));
         renderAll();
         // Se uma comanda estiver aberta, atualiza a tela dela também.
@@ -145,6 +463,7 @@ function startRealtimeSync(){
 }
 
 window.showView=function(name){
+  localStorage.setItem('aventura_current_view',name);
   const btn=document.querySelector(`.tab[data-view="${name}"]`);
   const req=btn?.dataset.permission;
   if(req && window.hasPermission && !window.hasPermission(req)) return alert('Você não tem permissão para acessar esta área.');
@@ -166,6 +485,7 @@ window.closeModal=()=>{
 
 window.openNewTabModal=function(){
   if(window.hasPermission&&!window.hasPermission('comandas'))return alert('Sem permissão.');
+  if(!canOperateSelectedDay()) return alert('Seu perfil só pode lançar comandas no dia atual.');
 
   openModal('Nova comanda',`
     <div class="comanda-open-form">
@@ -207,7 +527,7 @@ window.openNewTabModal=function(){
   setTimeout(()=>document.getElementById('newTabNumber')?.focus(),50);
 };
 
-window.createTab=function(){
+window.createTab=async function(){
   const raw=document.getElementById('newTabNumber')?.value;
   const numeric=Number(raw);
   const customer=document.getElementById('newTabCustomer')?.value.trim();
@@ -224,7 +544,7 @@ window.createTab=function(){
   }
 
   const number=String(numeric);
-  const today=new Date().toLocaleDateString('en-CA');
+  const today=selectedOperationalDate;
 
   const duplicate=state.tabs.some(t=>{
     if(t.status==='CANCELADA')return false;
@@ -246,6 +566,7 @@ window.createTab=function(){
     people,
     status:'ABERTA',
     createdAt:now,
+    businessDate:selectedOperationalDate,
     closedAt:null,
     total:0,
     createdBy:window.currentProfile?.id||null,
@@ -282,9 +603,17 @@ window.createTab=function(){
     createdByName:window.currentProfile?.full_name||'Sistema'
   });
 
-  save();
-  closeModal();
-  showView('comandas');
+  try{
+    showActionToast('Criando comanda...','info',1500);
+    await save();
+    closeModal();
+    showView('comandas');
+    showActionToast(`Comanda ${number} criada com sucesso.`,'success',2800);
+  }catch(err){
+    console.error(err);
+    showActionToast(`Erro ao criar comanda: ${err?.message||'falha ao salvar'}`,'error',5000);
+    alert('Não foi possível criar a comanda. Verifique a conexão com o servidor local.');
+  }
 };
 
 window.openTab=function(tabId){
@@ -591,39 +920,79 @@ function updateStableCart(){
 }
 
 window.sendOrderStable=async function(){
-  if(!cart.length) return;
+  const sendBtn=document.getElementById('stableSendButton');
 
-  for(const line of cart){
-    const p=state.products.find(x=>x.id===line.productId);
-    if(p&&p.stock<line.qty) return alert(`Estoque insuficiente: ${p.name}`);
+  if(!canOperateSelectedDay()){
+    showActionToast('Seu perfil só pode lançar pedidos no dia atual.','error');
+    return alert('Seu perfil só pode lançar pedidos no dia atual.');
   }
 
-  const order={
-    id:id(),
-    tabId:currentTabId,
-    items:structuredClone(cart),
-    total:cart.reduce((s,l)=>s+Number(l.qty||0)*Number(l.price||0),0),
-    createdAt:new Date().toISOString(),
-    status:'ENVIADO',
-    createdBy:window.currentProfile?.id||null,
-    createdByName:window.currentProfile?.full_name||'Usuário'
-  };
+  if(!cart.length){
+    showActionToast('Nenhum item foi selecionado.','error');
+    return;
+  }
 
-  state.orders.push(order);
+  setButtonBusy(sendBtn,true,'Enviando pedido...');
+  showActionToast('Enviando pedido...','info',1800);
 
-  cart.forEach(line=>{
-    const p=state.products.find(x=>x.id===line.productId);
-    if(p) p.stock-=line.qty;
-  });
+  const stateBefore=structuredClone(state);
+  const cartBefore=structuredClone(cart);
 
-  // Trava a tela no resumo antes de sincronizar.
-  lastSentOrderId=order.id;
-  orderReviewLocked=true;
+  try{
+    for(const line of cart){
+      const p=state.products.find(x=>x.id===line.productId);
+      if(p&&p.stock<line.qty){
+        throw new Error(`Estoque insuficiente: ${p.name}`);
+      }
+    }
 
-  save();
-  cart=[];
-  updateStableCart();
-  showSentOrderInline(order);
+    const order={
+      id:id(),
+      tabId:currentTabId,
+      items:structuredClone(cart),
+      total:cart.reduce((s,l)=>s+Number(l.qty||0)*Number(l.price||0),0),
+      createdAt:new Date().toISOString(),
+      status:'ENVIADO',
+      createdBy:window.currentProfile?.id||null,
+      createdByName:window.currentProfile?.full_name||'Usuário'
+    };
+
+    state.orders.push(order);
+
+    cart.forEach(line=>{
+      const p=state.products.find(x=>x.id===line.productId);
+      if(p) p.stock-=line.qty;
+    });
+
+    lastSentOrderId=order.id;
+    orderReviewLocked=true;
+
+    await save();
+
+    cart=[];
+    updateStableCart();
+    showSentOrderInline(order);
+    showActionToast('Pedido enviado e salvo com sucesso.','success',3200);
+
+  }catch(err){
+    console.error('Falha ao enviar pedido:',err);
+
+    state=stateBefore;
+    cart=cartBefore;
+    localStorage.setItem('aventura_pdv',JSON.stringify(state));
+    renderAll();
+
+    if(currentTabId) renderTabModal();
+
+    const message=err?.message||'Não foi possível enviar o pedido.';
+    showActionToast(`Pedido NÃO enviado: ${message}`,'error',6000);
+    alert(`Não foi possível enviar o pedido.\n\n${message}`);
+
+  }finally{
+    const currentBtn=document.getElementById('stableSendButton');
+    setButtonBusy(currentBtn,false);
+    updateStableCart();
+  }
 };
 
 function showSentOrderInline(order){
@@ -912,6 +1281,7 @@ window.updateClosingFees=function(){
 }
 
 window.openCheckout=function(){
+  if(!canOperateSelectedDay()) return alert('Seu perfil só pode fechar comandas no dia atual.');
   if(!canCloseComanda()){
     alert('Seu perfil não pode fechar comandas.');
     return;
@@ -983,7 +1353,7 @@ window.openCheckout=function(){
         <label class="fee-toggle-row">
           <div>
             <strong>Couvert artístico</strong>
-            <small>${tab.people||1} pessoa(s) × R$ 12,00</small>
+            <small>${tab.voucherId?'Conforme composição do voucher (inteira, meia, cortesia e free)':`${tab.people||1} pessoa(s) × R$ 12,00`}</small>
           </div>
           <div class="fee-toggle-end">
             <strong id="closingCouvert">${money(base.couvert)}</strong>
@@ -994,7 +1364,7 @@ window.openCheckout=function(){
         <label class="fee-toggle-row">
           <div>
             <strong>Taxa de sustentabilidade</strong>
-            <small>${tab.people||1} pessoa(s) × R$ 2,00</small>
+            <small>${tab.voucherId?'Conforme composição do voucher (inteira, meia, cortesia e free)':`${tab.people||1} pessoa(s) × R$ 2,00`}</small>
           </div>
           <div class="fee-toggle-end">
             <strong id="closingSustainability">${money(base.sustentabilidade)}</strong>
@@ -1239,6 +1609,141 @@ window.confirmCloseTab=function(){
   if(isGerente()) showView('caixa');
   else showView('comandas');
 };
+
+
+window.editTab=function(tabId){
+  if(!canManageComanda()) return alert('Sem permissão para editar comanda.');
+  const tab=state.tabs.find(t=>t.id===tabId);
+  if(!tab) return alert('Comanda não encontrada.');
+
+  openModal(`Editar comanda ${tab.number}`,`
+    <div class="comanda-open-form">
+      <label><span>Número da comanda</span><input id="editTabNumber" type="number" min="1" value="${escHtml(tab.number)}"></label>
+      <label><span>Responsável</span><input id="editTabCustomer" value="${escHtml(tab.customer||'')}"></label>
+      <label><span>Quantidade de pessoas</span><input id="editTabPeople" type="number" min="1" value="${Number(tab.people||1)}"></label>
+      <label><span>Agente</span><input id="editTabAgent" value="${escHtml(tab.agent||'')}" placeholder="Opcional"></label>
+    </div>
+    <div class="checkout-actions">
+      <button class="ghost" onclick="closeModal()">Cancelar</button>
+      <button class="primary" onclick="saveTabEdit('${tab.id}')">Salvar alterações</button>
+    </div>
+  `);
+};
+
+window.saveTabEdit=async function(tabId){
+  if(!canManageComanda()) return alert('Sem permissão.');
+  const tab=state.tabs.find(t=>t.id===tabId);
+  if(!tab) return alert('Comanda não encontrada.');
+
+  const number=String(Number(document.getElementById('editTabNumber')?.value)||'');
+  const customer=document.getElementById('editTabCustomer')?.value.trim();
+  const people=Number(document.getElementById('editTabPeople')?.value);
+  const agentName=document.getElementById('editTabAgent')?.value.trim();
+
+  if(!number || Number(number)<=0) return alert('Informe um número de comanda válido.');
+  if(!customer) return alert('Informe o responsável.');
+  if(!Number.isInteger(people)||people<=0) return alert('Informe a quantidade de pessoas.');
+
+  const duplicate=state.tabs.some(t=>t.id!==tabId && tabOperationalDate(t)===tabOperationalDate(tab) && String(Number(t.number))===String(Number(number)));
+  if(duplicate) return alert(`A Comanda ${number} já existe neste dia.`);
+
+  const oldPeople=Number(tab.people||1);
+  tab.number=number;
+  tab.customer=customer;
+  tab.people=people;
+  tab.agent=agentName||'';
+  const agent=ensureAgentFromVoucher(agentName);
+  tab.agentId=agent?.id||null;
+  tab.updatedAt=new Date().toISOString();
+  tab.updatedBy=window.currentProfile?.id||null;
+  tab.updatedByName=window.currentProfile?.full_name||'Usuário';
+
+  if(oldPeople!==people){
+    const automatic=state.orders.find(o=>o.tabId===tabId&&o.automatic&&o.status!=='CANCELADO');
+    if(automatic){
+      automatic.items.forEach(item=>{
+        if(['taxa-couvert-artistico','taxa-sustentabilidade'].includes(item.productId)) item.qty=people;
+      });
+      automatic.total=automatic.items.reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0);
+    }
+  }
+
+  try{
+    showActionToast('Salvando alterações...','info',1500);
+    await save();
+    closeModal();
+    showActionToast(`Comanda ${number} atualizada com sucesso.`,'success');
+  }catch(err){
+    console.error(err);
+    showActionToast(`Erro ao editar comanda: ${err?.message||'falha ao salvar'}`,'error',5000);
+  }
+};
+
+window.deleteTabPermanently=function(tabId){
+  if(!canManageComanda()){
+    return alert('Somente MASTER, GESTOR ou GERENTE podem apagar comandas.');
+  }
+
+  const tab=state.tabs.find(t=>t.id===tabId);
+  if(!tab) return alert('Comanda não encontrada.');
+
+  const linkedOrders=state.orders.filter(o=>o.tabId===tabId);
+  const linkedPayments=state.payments.filter(p=>p.tabId===tabId);
+
+  const warning=
+    `ATENÇÃO: apagar a Comanda ${tab.number}?\n\n`+
+    `Responsável: ${tab.customer||'Sem responsável'}\n\n`+
+    `Esta ação excluirá DEFINITIVAMENTE a comanda, os pedidos e os pagamentos vinculados.\n`+
+    `Ela não aparecerá no Caixa, Relatórios ou vendas.\n\n`+
+    `O estoque dos itens lançados será devolvido.\n\n`+
+    `ESTA AÇÃO NÃO PODE SER DESFEITA.`;
+
+  if(!confirm(warning)) return;
+
+  // Devolve ao estoque somente itens de pedidos não automáticos e não cancelados.
+  linkedOrders
+    .filter(o=>!o.automatic && o.status!=='CANCELADO')
+    .forEach(order=>{
+      (order.items||[]).forEach(item=>{
+        const product=state.products.find(p=>p.id===item.productId);
+        if(product) product.stock+=Number(item.qty||0);
+      });
+    });
+
+  // Se a comanda veio de voucher, desvincula o voucher para permitir nova comanda.
+  state.vouchers.forEach(v=>{
+    if(v.tabId===tabId){
+      delete v.tabId;
+      delete v.tabNumber;
+      delete v.boardedAt;
+      delete v.boardedBy;
+      delete v.boardedByName;
+
+      const paidNow=state.voucherPayments
+        .filter(p=>p.voucherId===v.id)
+        .reduce((s,p)=>s+Number(p.amount||0),0);
+      const remaining=Math.max(0,Number(v.due||0)-paidNow);
+      v.status=remaining>0.005?'AGUARDANDO_PAGAMENTO':'PRONTO_EMBARQUE';
+    }
+  });
+
+  state.orders=state.orders.filter(o=>o.tabId!==tabId);
+  state.payments=state.payments.filter(p=>p.tabId!==tabId);
+  state.tabs=state.tabs.filter(t=>t.id!==tabId);
+
+  if(currentTabId===tabId){
+    currentTabId=null;
+    cart=[];
+    lastSentOrderId=null;
+    orderReviewLocked=false;
+  }
+
+  save();
+  closeModal();
+  showView('comandas');
+  alert(`Comanda ${tab.number} apagada definitivamente.`);
+};
+
 window.openProductModal=function(){
   if(window.hasPermission&&!window.hasPermission('produtos'))return alert('Sem permissão.');
   openModal('Novo produto',`<div class="form-grid"><label>Nome<input id="pName"></label><label>Setor<select id="pSector"><option>BAR</option><option>COZINHA</option></select></label><label>Preço<input id="pPrice" type="number" step="0.01"></label><label>Estoque inicial<input id="pStock" type="number"></label><label>Estoque mínimo<input id="pMin" type="number" value="5"></label></div><div class="checkout"><button class="primary" onclick="createProduct()">Salvar produto</button></div>`);
@@ -1251,6 +1756,7 @@ window.createProduct=function(){
 };
 
 window.stockAdjust=function(pid,delta){
+  if(!canOperateSelectedDay()) return alert('Seu perfil só pode alterar estoque no dia atual.');
   if(window.hasPermission&&!window.hasPermission('estoque'))return alert('Sem permissão.');
   const p=state.products.find(x=>x.id===pid);const qty=Number(prompt(delta>0?'Quantidade de entrada:':'Quantidade de saída:'));if(!qty||qty<0)return;p.stock=Math.max(0,p.stock+(delta*qty));save();
 };
@@ -1269,7 +1775,7 @@ window.testPrinter=sector=>alert(`Impressão física desativada por enquanto. Os
 
 
 function getTodayOperationalData(){
-  const today=new Date().toLocaleDateString('en-CA');
+  const today=selectedOperationalDate;
   const todaysTabs=state.tabs.filter(t=>new Date(t.createdAt).toLocaleDateString('en-CA')===today);
   const tabIds=new Set(todaysTabs.map(t=>t.id));
   const todaysOrders=state.orders.filter(o=>tabIds.has(o.tabId)&&o.status!=='CANCELADO');
@@ -1330,10 +1836,19 @@ function getTodayOperationalData(){
   const products=Object.values(soldMap).sort((a,b)=>b.qty-a.qty);
   const durations=closed.filter(t=>t.closedAt).map(t=>(new Date(t.closedAt)-new Date(t.createdAt))/60000).filter(n=>Number.isFinite(n)&&n>=0);
   const avgDuration=durations.length?durations.reduce((a,b)=>a+b,0)/durations.length:0;
+  const passages=getPassageReport(today);
+
   return {
     today,todaysTabs,people,open,closed,couvert,sustentabilidade,productSales,barSales,kitchenSales,extrasSales,serviceFee,totalReceived,
     pix:byMethod('PIX'),cash:byMethod('DINHEIRO'),card:byMethod('CARTAO'),products,avgDuration,
-    avgTicket:closed.length?totalReceived/closed.length:0,avgPerPerson:people?totalReceived/people:0
+    passages,
+    avgTicket:closed.length?totalReceived/closed.length:0,
+    avgPerPerson:people?totalReceived/people:0,
+    serviceCarol:serviceFee/3,
+    serviceHiago:serviceFee/3,
+    serviceJoao:serviceFee/3,
+    couvertMachineFee:couvert*0.10,
+    couvertDimas:couvert*0.90
   };
 }
 
@@ -1345,7 +1860,7 @@ window.downloadDailyReport=function(){
     return;
   }
 
-  const d=getTodayOperationalData();
+  const d=getTodayOperationalData(selectedOperationalDate);
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
 
@@ -1409,7 +1924,7 @@ window.downloadDailyReport=function(){
   text(state.settings.boat||'Capitão Gancho',margin+24,21,15,'bold',[255,255,255]);
   text('Relatório operacional do dia',margin+24,27,8,'normal',[225,213,238]);
 
-  text(new Date().toLocaleDateString('pt-BR',{
+  text(new Date(`${d.today}T12:00:00`).toLocaleDateString('pt-BR',{
     weekday:'long',day:'2-digit',month:'long',year:'numeric'
   }),pageW-margin,15,8,'normal',[255,255,255],'right');
   text(`Gerado às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`,
@@ -1533,6 +2048,49 @@ window.downloadDailyReport=function(){
   });
   y+=27;
 
+
+  y=ensureSpace(78,y);
+  text('PASSAGENS / VOUCHERS',margin,y,10,'bold',purple);
+  y+=6;
+  [
+    ['Passagens cadastradas',d.passages?.count||0],
+    ['Passageiros',d.passages?.passengers||0],
+    ['Inteira',d.passages?.fullPassengers||0],
+    ['Meia',d.passages?.halfPassengers||0],
+    ['Cortesia',d.passages?.courtesyPassengers||0],
+    ['Free / bebê',d.passages?.freePassengers||0],
+    ['Valor total das passagens',brl(d.passages?.passageTotal||0)],
+    ['Pago antes do embarque',brl(d.passages?.paidBefore||0)],
+    ['Recebido no barco',brl(d.passages?.receivedOnBoard||0)],
+    ['Barco - Dinheiro',brl(d.passages?.cash||0)],
+    ['Barco - PIX',brl(d.passages?.pix||0)],
+    ['Barco - Cartão',brl(d.passages?.card||0)],
+    ['Saldo pendente',brl(d.passages?.pending||0)]
+  ].forEach(([label,value])=>{
+    text(label,margin,y+4,8,'normal',dark);
+    text(value,pageW-margin,y+4,8,'bold',dark,'right');
+    y+=8;
+  });
+  y+=4;
+
+  y=ensureSpace(58,y);
+  text('REPASSES',margin,y,10,'bold',purple);
+  y+=6;
+  [
+    ['Taxa de serviço 10% - TOTAL DA EQUIPE',d.serviceFee],
+    ['Carol - 1/3 da taxa de serviço',d.serviceCarol],
+    ['Hiago - 1/3 da taxa de serviço',d.serviceHiago],
+    ['João - 1/3 da taxa de serviço',d.serviceJoao],
+    ['Couvert bruto',d.couvert],
+    ['Taxa máquina do couvert (10%)',d.couvertMachineFee],
+    ['Dimas - líquido do couvert',d.couvertDimas]
+  ].forEach(([label,value])=>{
+    text(label,margin,y+4,8,'normal',dark);
+    text(brl(value),pageW-margin,y+4,8,'bold',dark,'right');
+    y+=8;
+  });
+  y+=4;
+
   // PRODUCTS TABLE
   y=ensureSpace(45,y);
   text('PRODUTOS VENDIDOS',margin,y,10,'bold',purple);
@@ -1650,6 +2208,185 @@ window.downloadDailyReport=function(){
 };
 
 
+
+function voucherDateKey(value){
+  const s=String(value||'').trim();
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(br){
+    return `${br[3]}-${String(br[2]).padStart(2,'0')}-${String(br[1]).padStart(2,'0')}`;
+  }
+  const d=new Date(s);
+  return Number.isNaN(d.getTime())?'':dateKeyFrom(d);
+}
+
+function getPassageReport(dateKey=selectedOperationalDate){
+  const vouchers=(state.vouchers||[]).filter(v=>voucherDateKey(v.date)===dateKey && v.deleted!==true);
+  const voucherIds=new Set(vouchers.map(v=>v.id));
+  const onboardPayments=(state.voucherPayments||[]).filter(p=>voucherIds.has(p.voucherId));
+
+  const passageTotal=vouchers.reduce((s,v)=>s+Number(v.total||0),0);
+  const paidBefore=vouchers.reduce((s,v)=>s+Math.min(Number(v.paid||0),Number(v.total||0)),0);
+  const receivedOnBoard=onboardPayments.reduce((s,p)=>s+Number(p.amount||0),0);
+  const pending=Math.max(0,passageTotal-paidBefore-receivedOnBoard);
+  const byMethod=method=>onboardPayments.filter(p=>p.method===method).reduce((s,p)=>s+Number(p.amount||0),0);
+  const passengers=vouchers.reduce((s,v)=>s+Number(v.passengers||0),0);
+  const fullPassengers=vouchers.reduce((s,v)=>s+Number(v.fullPassengers ?? v.passengers ?? 0),0);
+  const halfPassengers=vouchers.reduce((s,v)=>s+Number(v.halfPassengers||0),0);
+  const courtesyPassengers=vouchers.reduce((s,v)=>s+Number(v.courtesyPassengers||0),0);
+  const freePassengers=vouchers.reduce((s,v)=>s+Number(v.freePassengers||0),0);
+
+  return {
+    vouchers,
+    count:vouchers.length,
+    passengers,
+    fullPassengers,
+    halfPassengers,
+    courtesyPassengers,
+    freePassengers,
+    passageTotal,
+    paidBefore,
+    receivedOnBoard,
+    pending,
+    cash:byMethod('DINHEIRO'),
+    pix:byMethod('PIX'),
+    card:byMethod('CARTAO')
+  };
+}
+
+
+function normalizeAgentName(v){
+  return String(v||'').trim().toLocaleLowerCase('pt-BR');
+}
+
+function findAgentByName(name){
+  const key=normalizeAgentName(name);
+  return (state.agents||[]).find(a=>normalizeAgentName(a.name)===key || normalizeAgentName(a.partner)===key);
+}
+
+function ensureAgentFromVoucher(agentName){
+  const clean=String(agentName||'').trim();
+  if(!clean) return null;
+  let agent=findAgentByName(clean);
+  if(agent) return agent;
+
+  agent={
+    id:id(),
+    name:clean,
+    partner:'',
+    commissionPercent:0,
+    bankName:'',
+    bankAgency:'',
+    bankAccount:'',
+    pixKey:'',
+    active:true,
+    createdAt:new Date().toISOString(),
+    createdFromVoucher:true
+  };
+  state.agents.push(agent);
+  return agent;
+}
+
+
+function getVoucherCommissionBase(v){
+  // A comissão acompanha o valor efetivo da passagem registrado no voucher.
+  // Exemplo padrão: 6 passagens inteiras x R$ 110 = R$ 660.
+  return Math.max(0,Number(v.total||0));
+}
+
+function getVoucherCommission(v){
+  const agent=(state.agents||[]).find(a=>a.id===v.agentId) || findAgentByName(v.agent);
+  const percent=Math.max(0,Number(agent?.commissionPercent||0));
+  const base=getVoucherCommissionBase(v);
+  const amount=base*(percent/100);
+  const payment=(state.commissionPayments||[]).find(p=>p.voucherId===v.id);
+  return {
+    voucher:v,
+    agent,
+    percent,
+    base,
+    amount,
+    paid:Boolean(payment?.paidAt),
+    paidAt:payment?.paidAt||null,
+    paidByName:payment?.paidByName||null
+  };
+}
+
+function getCommissionRows(dateKey=null){
+  return (state.vouchers||[])
+    .filter(v=>v.deleted!==true)
+    .filter(v=>!dateKey || voucherDateKey(v.date)===dateKey)
+    .filter(v=>String(v.agent||'').trim())
+    .map(getVoucherCommission)
+    .filter(r=>r.agent && r.percent>0 && r.amount>0)
+    .sort((a,b)=>{
+      const an=String(a.agent?.name||'');
+      const bn=String(b.agent?.name||'');
+      if(an!==bn) return an.localeCompare(bn,'pt-BR');
+      return String(a.voucher?.voucherNumber||'').localeCompare(String(b.voucher?.voucherNumber||''),'pt-BR');
+    });
+}
+
+function getCommissionSummary(dateKey=null){
+  const rows=getCommissionRows(dateKey);
+  const byAgent=new Map();
+
+  rows.forEach(r=>{
+    const key=r.agent.id;
+    if(!byAgent.has(key)){
+      byAgent.set(key,{
+        agent:r.agent,
+        vouchers:0,
+        passengers:0,
+        base:0,
+        amount:0,
+        paid:0,
+        pending:0
+      });
+    }
+    const x=byAgent.get(key);
+    x.vouchers++;
+    x.passengers+=Number(r.voucher.passengers||0);
+    x.base+=r.base;
+    x.amount+=r.amount;
+    if(r.paid) x.paid+=r.amount;
+    else x.pending+=r.amount;
+  });
+
+  return {
+    rows,
+    agents:[...byAgent.values()],
+    total:rows.reduce((s,r)=>s+r.amount,0),
+    paid:rows.filter(r=>r.paid).reduce((s,r)=>s+r.amount,0),
+    pending:rows.filter(r=>!r.paid).reduce((s,r)=>s+r.amount,0)
+  };
+}
+
+window.setCommissionPaid=async function(voucherId,paid){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode marcar comissões como pagas.');
+  }
+
+  state.commissionPayments=Array.isArray(state.commissionPayments)?state.commissionPayments:[];
+  state.commissionPayments=state.commissionPayments.filter(p=>p.voucherId!==voucherId);
+
+  if(paid){
+    state.commissionPayments.push({
+      id:id(),
+      voucherId,
+      paidAt:new Date().toISOString(),
+      paidBy:window.currentProfile?.id||null,
+      paidByName:window.currentProfile?.full_name||'MASTER'
+    });
+  }
+
+  await save();
+  showActionToast(paid?'Comissão marcada como paga.':'Comissão reaberta como pendente.','success');
+  renderCommissions();
+  renderCommissionReport();
+};
+
 function voucherMoney(v){
   return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 }
@@ -1718,6 +2455,10 @@ async function extractVoucherFromPdf(file){
     contact,
     date,
     passengers:passengersMatch?Number(passengersMatch[1]):1,
+    fullPassengers:passengersMatch?Number(passengersMatch[1]):1,
+    halfPassengers:0,
+    courtesyPassengers:0,
+    freePassengers:0,
     departure,
     embarkation,
     agent,
@@ -1740,7 +2481,13 @@ window.handleVoucherUpload=async function(input){
 
   try{
     const data=await extractVoucherFromPdf(file);
-    openVoucherReview(data);
+    openVoucherReview({
+      ...data,
+      fullPassengers:Number(data.fullPassengers ?? data.passengers ?? 1),
+      halfPassengers:Number(data.halfPassengers||0),
+      courtesyPassengers:Number(data.courtesyPassengers||0),
+      freePassengers:Number(data.freePassengers||0)
+    });
 
     if(status){
       status.className='voucher-upload-status ok';
@@ -1750,7 +2497,7 @@ window.handleVoucherUpload=async function(input){
     console.error(err);
     if(status){
       status.className='voucher-upload-status error';
-      status.textContent='Não consegui ler automaticamente. Você pode cadastrar os dados manualmente.';
+      status.textContent=`Erro ao ler voucher: ${err?.message||'falha desconhecida'}. Você pode conferir os dados manualmente.`;
     }
     openVoucherReview({sourceFileName:file.name});
   }finally{
@@ -1762,23 +2509,56 @@ window.openVoucherManual=function(){
   openVoucherReview({});
 };
 
-function openVoucherReview(v={}){
-  openModal('Cadastrar voucher',`
+
+function voucherAgentDatalist(){
+  return (state.agents||[])
+    .filter(a=>a.active!==false)
+    .slice()
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'))
+    .map(a=>{
+      const label=a.partner?`${a.name} • ${a.partner}`:a.name;
+      return `<option value="${escHtml(a.name)}">${escHtml(label)}</option>`;
+    }).join('');
+}
+
+function openVoucherReview(v={},editId=null){
+  openModal(editId?'Editar passagem / voucher':'Cadastrar voucher',`
     <div class="voucher-form">
       <div class="voucher-form-grid">
         <label>Nº do voucher<input id="voucherNumber" value="${escHtml(v.voucherNumber||'')}" placeholder="Ex.: 1304"></label>
         <label>Nome do passageiro<input id="voucherName" value="${escHtml(v.name||'')}" placeholder="Nome completo"></label>
         <label>Contato<input id="voucherContact" value="${escHtml(v.contact||'')}" placeholder="Telefone / WhatsApp"></label>
         <label>Data<input id="voucherDate" value="${escHtml(v.date||'')}" placeholder="dd/mm/aaaa"></label>
-        <label>Passageiros<input id="voucherPassengers" type="number" min="1" value="${Number(v.passengers||1)}"></label>
+        <div class="voucher-passenger-types">
+          <strong>Passageiros</strong>
+          <div class="voucher-passenger-grid">
+            <label>Inteira • R$ 110
+              <input id="voucherFullPassengers" type="number" min="0" value="${Number(v.fullPassengers ?? v.passengers ?? 1)}" oninput="recalcVoucherTotalByPassengers()">
+            </label>
+            <label>Meia • R$ 55
+              <input id="voucherHalfPassengers" type="number" min="0" value="${Number(v.halfPassengers||0)}" oninput="recalcVoucherTotalByPassengers()">
+            </label>
+            <label>Cortesia • R$ 0
+              <input id="voucherCourtesyPassengers" type="number" min="0" value="${Number(v.courtesyPassengers||0)}" oninput="recalcVoucherTotalByPassengers()">
+            </label>
+            <label>Free / bebê • R$ 0
+              <input id="voucherFreePassengers" type="number" min="0" value="${Number(v.freePassengers||0)}" oninput="recalcVoucherTotalByPassengers()">
+            </label>
+          </div>
+          <small>Meia paga metade do couvert e da sustentabilidade. Cortesia paga as taxas normalmente. Free/bebê não paga passagem, couvert nem sustentabilidade.</small>
+        </div>
         <label>Saída<input id="voucherDeparture" value="${escHtml(v.departure||'')}" placeholder="Ex.: 10:30h"></label>
         <label>Embarque<input id="voucherEmbarkation" value="${escHtml(v.embarkation||'')}" placeholder="Ex.: Cais de Turismo"></label>
-        <label>Agente<input id="voucherAgent" value="${escHtml(v.agent||'')}" placeholder="Agente / parceiro"></label>
+        <label>Agente
+          <input id="voucherAgent" list="voucherAgentList" value="${escHtml(v.agent||'')}" placeholder="Digite ou selecione um agente">
+          <datalist id="voucherAgentList">${voucherAgentDatalist()}</datalist>
+          <small>Selecione um agente cadastrado ou digite um novo nome.</small>
+        </label>
       </div>
 
       <div class="voucher-values-grid">
-        <label>Total da passagem
-          <div class="money-input-wrap"><span>R$</span><input id="voucherTotal" type="number" min="0" step="0.01" value="${Number(v.total||0).toFixed(2)}" oninput="recalcVoucherDue()"></div>
+        <label>Total da passagem • R$ 110 por passageiro
+          <div class="money-input-wrap"><span>R$</span><input id="voucherTotal" type="number" min="0" step="0.01" value="${Number(v.total||((Number(v.fullPassengers ?? v.passengers ?? 1))*DEFAULT_PASSAGE_PRICE + Number(v.halfPassengers||0)*(DEFAULT_PASSAGE_PRICE/2))).toFixed(2)}" readonly></div>
         </label>
         <label>Já pago
           <div class="money-input-wrap"><span>R$</span><input id="voucherPaid" type="number" min="0" step="0.01" value="${Number(v.paid||0).toFixed(2)}" oninput="recalcVoucherDue()"></div>
@@ -1788,19 +2568,19 @@ function openVoucherReview(v={}){
         </label>
       </div>
 
-      <div class="voucher-info-note">
+      <div class="voucher-info-note"><strong>Total de passageiros: <span id="voucherPassengerTotal">0</span></strong><br>
         Este saldo é da <strong>passagem/passeio</strong>. Ele não entra na conta de consumo do barco.
         A comanda de consumo só será iniciada quando o passageiro chegar e o saldo da passagem for acertado.
       </div>
 
       <div class="checkout-actions">
         <button class="ghost" onclick="closeModal()">Cancelar</button>
-        <button class="primary" onclick="saveVoucher()">Salvar voucher</button>
+        <button class="primary" onclick="saveVoucher(${editId?`'${editId}'`:'null'})">${editId?'Salvar alterações':'Salvar voucher'}</button>
       </div>
     </div>
   `);
 
-  recalcVoucherDue();
+  recalcVoucherTotalByPassengers();
 }
 
 function escHtml(v){
@@ -1811,6 +2591,24 @@ function escHtml(v){
     .replaceAll('"','&quot;');
 }
 
+
+window.recalcVoucherTotalByPassengers=function(){
+  const full=Math.max(0,Number(document.getElementById('voucherFullPassengers')?.value)||0);
+  const half=Math.max(0,Number(document.getElementById('voucherHalfPassengers')?.value)||0);
+  const courtesy=Math.max(0,Number(document.getElementById('voucherCourtesyPassengers')?.value)||0);
+  const free=Math.max(0,Number(document.getElementById('voucherFreePassengers')?.value)||0);
+
+  const passengers=full+half+courtesy+free;
+  const total=(full*DEFAULT_PASSAGE_PRICE)+(half*(DEFAULT_PASSAGE_PRICE/2));
+
+  const totalEl=document.getElementById('voucherTotal');
+  if(totalEl) totalEl.value=total.toFixed(2);
+
+  const totalPeopleEl=document.getElementById('voucherPassengerTotal');
+  if(totalPeopleEl) totalPeopleEl.textContent=String(passengers);
+
+  recalcVoucherDue();
+};
 window.recalcVoucherDue=function(){
   const total=Math.max(0,Number(document.getElementById('voucherTotal')?.value)||0);
   const paid=Math.max(0,Number(document.getElementById('voucherPaid')?.value)||0);
@@ -1819,15 +2617,20 @@ window.recalcVoucherDue=function(){
   if(el) el.value=due.toFixed(2);
 };
 
-window.saveVoucher=function(){
+window.saveVoucher=function(editId=null){
   const voucherNumber=document.getElementById('voucherNumber')?.value.trim();
   const name=document.getElementById('voucherName')?.value.trim();
   const contact=document.getElementById('voucherContact')?.value.trim();
   const date=document.getElementById('voucherDate')?.value.trim();
-  const passengers=Number(document.getElementById('voucherPassengers')?.value)||1;
+  const fullPassengers=Math.max(0,Number(document.getElementById('voucherFullPassengers')?.value)||0);
+  const halfPassengers=Math.max(0,Number(document.getElementById('voucherHalfPassengers')?.value)||0);
+  const courtesyPassengers=Math.max(0,Number(document.getElementById('voucherCourtesyPassengers')?.value)||0);
+  const freePassengers=Math.max(0,Number(document.getElementById('voucherFreePassengers')?.value)||0);
+  const passengers=fullPassengers+halfPassengers+courtesyPassengers+freePassengers;
   const departure=document.getElementById('voucherDeparture')?.value.trim();
   const embarkation=document.getElementById('voucherEmbarkation')?.value.trim();
   const agent=document.getElementById('voucherAgent')?.value.trim();
+  const linkedAgent=ensureAgentFromVoucher(agent);
   const total=Math.max(0,Number(document.getElementById('voucherTotal')?.value)||0);
   const paid=Math.max(0,Number(document.getElementById('voucherPaid')?.value)||0);
   const due=Math.max(0,total-paid);
@@ -1835,10 +2638,50 @@ window.saveVoucher=function(){
   if(!voucherNumber) return alert('Informe o número do voucher.');
   if(!name) return alert('Informe o nome do passageiro.');
   if(!date) return alert('Informe a data do passeio.');
-  if(!Number.isInteger(passengers)||passengers<=0) return alert('Informe a quantidade de passageiros.');
+  if(!Number.isInteger(passengers)||passengers<=0) return alert('Informe pelo menos 1 passageiro entre Inteira, Meia, Cortesia ou Free.');
 
-  const duplicate=state.vouchers.some(v=>String(v.voucherNumber)===String(voucherNumber));
+  const duplicate=state.vouchers.some(v=>String(v.voucherNumber)===String(voucherNumber)&&v.id!==editId);
   if(duplicate) return alert(`O voucher #${voucherNumber} já está cadastrado.`);
+
+  if(editId){
+    const existing=state.vouchers.find(v=>v.id===editId);
+    if(!existing) return alert('Passagem / voucher não encontrado.');
+
+    Object.assign(existing,{
+      voucherNumber,
+      name,
+      contact,
+      date,
+      passengers,
+      fullPassengers,
+      halfPassengers,
+      courtesyPassengers,
+      freePassengers,
+      departure,
+      embarkation,
+      agent,
+      agentId:linkedAgent?.id||null,
+      total,
+      paid,
+      due,
+      updatedAt:new Date().toISOString(),
+      updatedBy:window.currentProfile?.id||null,
+      updatedByName:window.currentProfile?.full_name||'Usuário'
+    });
+
+    const paidOnBoard=state.voucherPayments
+      .filter(p=>p.voucherId===existing.id)
+      .reduce((s,p)=>s+Number(p.amount||0),0);
+
+    if(existing.tabId) existing.status='EMBARCADO';
+    else existing.status=Math.max(0,due-paidOnBoard)>0.005?'AGUARDANDO_PAGAMENTO':'PRONTO_EMBARQUE';
+
+    save();
+    closeModal();
+    showView('vouchers');
+    showActionToast('Passagem / voucher atualizado com sucesso.','success');
+    return;
+  }
 
   state.vouchers.push({
     id:id(),
@@ -1847,9 +2690,14 @@ window.saveVoucher=function(){
     contact,
     date,
     passengers,
+    fullPassengers,
+    halfPassengers,
+    courtesyPassengers,
+    freePassengers,
     departure,
     embarkation,
     agent,
+    agentId:linkedAgent?.id||null,
     total,
     paid,
     due,
@@ -1862,10 +2710,77 @@ window.saveVoucher=function(){
   save();
   closeModal();
   showView('vouchers');
+  showActionToast('Passagem / voucher salvo com sucesso.','success');
+};
+
+
+window.editVoucher=function(voucherId){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode editar passagens / vouchers.');
+  }
+  const v=state.vouchers.find(x=>x.id===voucherId);
+  if(!v) return alert('Passagem / voucher não encontrado.');
+  openVoucherReview({...v},voucherId);
+};
+
+window.deleteVoucherPermanently=function(voucherId){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode apagar passagens / vouchers.');
+  }
+
+  const v=state.vouchers.find(x=>x.id===voucherId);
+  if(!v) return alert('Passagem / voucher não encontrado.');
+
+  const onboard=state.voucherPayments
+    .filter(p=>p.voucherId===voucherId)
+    .reduce((s,p)=>s+Number(p.amount||0),0);
+
+  const warning=
+    `ATENÇÃO: apagar a passagem / voucher #${v.voucherNumber}?\n\n`+
+    `Passageiro: ${v.name}\n`+
+    `Data: ${v.date}\n`+
+    `Valor total: ${money(v.total)}\n`+
+    `Recebido no barco: ${money(onboard)}\n\n`+
+    `A passagem e os recebimentos vinculados serão excluídos definitivamente e NÃO contarão em nenhum relatório.\n\n`+
+    `A comanda de consumo, se existir, NÃO será apagada.\n\n`+
+    `ESTA AÇÃO NÃO PODE SER DESFEITA.`;
+
+  if(!confirm(warning)) return;
+
+  // Desvincula eventual comanda, mas preserva a comanda e seus consumos.
+  state.tabs.forEach(t=>{
+    if(t.voucherId===voucherId){
+      delete t.voucherId;
+      delete t.voucherNumber;
+    }
+  });
+
+  state.voucherPayments=state.voucherPayments.filter(p=>p.voucherId!==voucherId);
+  state.vouchers=state.vouchers.filter(x=>x.id!==voucherId);
+
+  save();
+  showActionToast('Passagem / voucher apagado definitivamente.','success');
 };
 
 window.searchVouchers=function(){
+
+  const opDate=document.getElementById('operationalDate');
+  if(opDate) opDate.value=selectedOperationalDate;
+  const opStatus=document.getElementById('operationalDayStatus');
+  if(opStatus){
+    const isToday=selectedDateIsToday();
+    opStatus.textContent=isToday?'DIA ATUAL':'HISTÓRICO';
+    opStatus.className=`operational-status ${isToday?'current':'history'}`;
+  }
+  const opNav=document.getElementById('operationalCalendar');
+  if(opNav){
+    opNav.classList.toggle('master-calendar-hidden',window.currentProfile?.role!=='MASTER');
+  }
+
+  renderAgents();
   renderVouchers();
+  renderCommissions();
+  renderCommissionReport();
 };
 
 function renderVouchers(){
@@ -1907,6 +2822,7 @@ function renderVouchers(){
           <span class="eyebrow">VOUCHER #${escHtml(v.voucherNumber)}</span>
           <h3>${escHtml(v.name)}</h3>
           <p>${escHtml(v.date)} • ${v.passengers} passageiro(s) • ${escHtml(v.departure||'Horário não informado')}</p>
+          <p class="voucher-passenger-summary">Inteira: ${Number(v.fullPassengers ?? v.passengers ?? 0)} • Meia: ${Number(v.halfPassengers||0)} • Cortesia: ${Number(v.courtesyPassengers||0)} • Free: ${Number(v.freePassengers||0)}</p>
         </div>
         <span class="voucher-status ${started?'started':remaining<=0.005?'ready':'pending'}">${statusLabel}</span>
       </div>
@@ -1924,6 +2840,10 @@ function renderVouchers(){
           ? `<button class="ghost" onclick="openTab('${v.tabId}')">Abrir comanda ${escHtml(v.tabNumber||'')}</button>`
           : `<button class="primary" onclick="openVoucherArrival('${v.id}')">${remaining>0.005?'Receber saldo e iniciar comanda':'Iniciar comanda do barco'}</button>`
         }
+        ${window.currentProfile?.role==='MASTER'?`
+          <button class="ghost" onclick="editVoucher('${v.id}')">Editar</button>
+          <button class="danger" onclick="deleteVoucherPermanently('${v.id}')">Apagar</button>
+        `:''}
       </div>
     </article>`;
   }).join('');
@@ -1942,7 +2862,7 @@ window.openVoucherArrival=function(voucherId){
         <div>
           <span class="eyebrow">PASSAGEIRO</span>
           <h3>${escHtml(v.name)}</h3>
-          <p>${v.passengers} passageiro(s) • ${escHtml(v.departure||'')}</p>
+          <p>${v.passengers} passageiro(s) • ${escHtml(v.departure||'')}</p><p class="voucher-passenger-summary">Inteira: ${Number(v.fullPassengers ?? v.passengers ?? 0)} • Meia: ${Number(v.halfPassengers||0)} • Cortesia: ${Number(v.courtesyPassengers||0)} • Free: ${Number(v.freePassengers||0)}</p>
         </div>
         <div class="voucher-arrival-due">
           <span>Saldo da passagem</span>
@@ -2076,25 +2996,60 @@ window.settleVoucherAndStartTab=function(voucherId){
     number,
     customer:v.name,
     people:Number(v.passengers||1),
+    fullPassengers:Number(v.fullPassengers ?? v.passengers ?? 0),
+    halfPassengers:Number(v.halfPassengers||0),
+    courtesyPassengers:Number(v.courtesyPassengers||0),
+    freePassengers:Number(v.freePassengers||0),
     status:'ABERTA',
     createdAt:now,
+    businessDate:selectedOperationalDate,
     closedAt:null,
     total:0,
     voucherId:v.id,
     voucherNumber:v.voucherNumber,
+    agent:v.agent||'',
+    agentId:v.agentId||findAgentByName(v.agent)?.id||null,
     createdBy:window.currentProfile?.id||null,
     createdByName:window.currentProfile?.full_name||'Usuário'
   });
 
   // Taxas automáticas do barco começam somente no momento do embarque.
+  const fullCount=Number(v.fullPassengers ?? v.passengers ?? 0);
+  const halfCount=Number(v.halfPassengers||0);
+  const courtesyCount=Number(v.courtesyPassengers||0);
+  const freeCount=Number(v.freePassengers||0);
+
+  // Regras de taxas:
+  // inteira e cortesia: couvert e sustentabilidade integrais;
+  // meia: metade de cada taxa;
+  // free/bebê: não paga nenhuma das duas taxas.
+  const couvertTotal=(fullCount*12)+(halfCount*6)+(courtesyCount*12);
+  const sustentabilidadeTotal=(fullCount*2)+(halfCount*1)+(courtesyCount*2);
+
   state.orders.push({
     id:id(),
     tabId,
     items:[
-      {productId:'taxa-couvert-artistico',name:'Couvert artístico',category:'TAXAS',sector:'TAXAS',price:12,qty:Number(v.passengers||1)},
-      {productId:'taxa-sustentabilidade',name:'Taxa de sustentabilidade',category:'TAXAS',sector:'TAXAS',price:2,qty:Number(v.passengers||1)}
+      {
+        productId:'taxa-couvert-artistico',
+        name:'Couvert artístico',
+        category:'TAXAS',
+        sector:'TAXAS',
+        price:1,
+        qty:couvertTotal,
+        pricingNote:'Inteira/Cortesia R$ 12 • Meia R$ 6 • Free R$ 0'
+      },
+      {
+        productId:'taxa-sustentabilidade',
+        name:'Taxa de sustentabilidade',
+        category:'TAXAS',
+        sector:'TAXAS',
+        price:1,
+        qty:sustentabilidadeTotal,
+        pricingNote:'Inteira/Cortesia R$ 2 • Meia R$ 1 • Free R$ 0'
+      }
     ],
-    total:Number(v.passengers||1)*14,
+    total:couvertTotal+sustentabilidadeTotal,
     createdAt:now,
     status:'ENVIADO',
     automatic:true,
@@ -2116,29 +3071,409 @@ window.settleVoucherAndStartTab=function(voucherId){
   renderTabModal();
 };
 
+
+window.openAgentModal=function(agentId=null){
+  if(window.currentProfile?.role!=='MASTER') return alert('Somente o MASTER pode cadastrar ou editar agentes.');
+  const a=agentId?state.agents.find(x=>x.id===agentId):null;
+  openModal(a?'Editar agente':'Novo agente',`
+    <div class="agent-form">
+      <div class="agent-edit-grid">
+        <label>Nome do agente<input id="agentName" value="${escHtml(a?.name||'')}" placeholder="Ex.: João"></label>
+        <label>Parceiro / Pousada<input id="agentPartner" value="${escHtml(a?.partner||'')}" placeholder="Ex.: Pousada A"></label>
+        <label>Comissão (%)<input id="agentCommission" type="number" min="0" max="100" step="0.01" value="${Number(a?.commissionPercent||0)}"></label>
+        <label>Banco<input id="agentBankName" value="${escHtml(a?.bankName||'')}" placeholder="Banco"></label>
+        <label>Agência<input id="agentBankAgency" value="${escHtml(a?.bankAgency||'')}" placeholder="Agência"></label>
+        <label>Conta<input id="agentBankAccount" value="${escHtml(a?.bankAccount||'')}" placeholder="Conta"></label>
+        <label class="agent-wide">Chave PIX<input id="agentPixKey" value="${escHtml(a?.pixKey||'')}" placeholder="CPF, CNPJ, celular, e-mail ou chave aleatória"></label>
+      </div>
+      <label class="active-toggle"><input id="agentActive" type="checkbox" ${a?.active===false?'':'checked'}> Agente ativo</label>
+      <div class="checkout-actions">
+        <button class="ghost" onclick="closeModal()">Cancelar</button>
+        <button class="primary" onclick="saveAgent('${a?.id||''}')">Salvar agente</button>
+      </div>
+    </div>
+  `);
+};
+
+window.saveAgent=async function(agentId=''){
+  if(window.currentProfile?.role!=='MASTER') return alert('Somente o MASTER pode alterar agentes.');
+  const name=document.getElementById('agentName')?.value.trim();
+  if(!name) return alert('Informe o nome do agente.');
+
+  const duplicate=state.agents.some(a=>a.id!==agentId && normalizeAgentName(a.name)===normalizeAgentName(name));
+  if(duplicate) return alert('Já existe um agente com esse nome.');
+
+  const payload={
+    name,
+    partner:document.getElementById('agentPartner')?.value.trim()||'',
+    commissionPercent:Math.max(0,Number(document.getElementById('agentCommission')?.value)||0),
+    bankName:document.getElementById('agentBankName')?.value.trim()||'',
+    bankAgency:document.getElementById('agentBankAgency')?.value.trim()||'',
+    bankAccount:document.getElementById('agentBankAccount')?.value.trim()||'',
+    pixKey:document.getElementById('agentPixKey')?.value.trim()||'',
+    active:document.getElementById('agentActive')?.checked!==false,
+    updatedAt:new Date().toISOString()
+  };
+
+  if(agentId){
+    const a=state.agents.find(x=>x.id===agentId);
+    if(!a) return alert('Agente não encontrado.');
+    Object.assign(a,payload);
+    state.vouchers.forEach(v=>{ if(v.agentId===agentId) v.agent=name; });
+    state.tabs.forEach(t=>{ if(t.agentId===agentId) t.agent=name; });
+  }else{
+    state.agents.push({id:id(),...payload,createdAt:new Date().toISOString()});
+  }
+
+  await save();
+  closeModal();
+  showActionToast('Agente salvo com sucesso.','success');
+};
+
+window.deleteAgent=function(agentId){
+  if(window.currentProfile?.role!=='MASTER') return alert('Somente o MASTER pode apagar agentes.');
+  const a=state.agents.find(x=>x.id===agentId);
+  if(!a) return;
+  if(!confirm(`Apagar o agente ${a.name}?\n\nOs vouchers e comandas existentes continuarão com o nome registrado, mas o cadastro bancário e a comissão deste agente serão removidos.`)) return;
+  state.agents=state.agents.filter(x=>x.id!==agentId);
+  save();
+  showActionToast('Agente apagado.','success');
+};
+
+window.searchAgents=function(){ renderAgents(); };
+
+function renderAgents(){
+  const box=document.getElementById('agentsList');
+  if(!box) return;
+  const q=(document.getElementById('agentSearch')?.value||'').trim().toLowerCase();
+  const list=(state.agents||[]).filter(a=>!q || [a.name,a.partner,a.pixKey].some(v=>String(v||'').toLowerCase().includes(q)));
+
+  box.innerHTML=list.length?list.map(a=>`
+    <article class="agent-card ${a.active===false?'agent-inactive':''}">
+      <div>
+        <span class="eyebrow">${escHtml(a.partner||'AGENTE')}</span>
+        <h3>${escHtml(a.name)}</h3>
+        <p>${a.active===false?'Inativo':'Ativo'}${a.pixKey?` • PIX: ${escHtml(a.pixKey)}`:''}</p>
+      </div>
+      <div class="agent-stats">
+        <div><span>Comissão</span><strong>${Number(a.commissionPercent||0).toLocaleString('pt-BR')}%</strong></div>
+        <div><span>Banco</span><strong>${escHtml(a.bankName||'-')}</strong></div>
+        <div><span>Conta</span><strong>${escHtml(a.bankAccount||'-')}</strong></div>
+      </div>
+      <div class="agent-actions">
+        ${window.currentProfile?.role==='MASTER'?`<button class="ghost" onclick="openAgentModal('${a.id}')">Editar</button><button class="danger" onclick="deleteAgent('${a.id}')">Apagar</button>`:''}
+      </div>
+    </article>`).join(''):'<div class="voucher-empty">Nenhum agente encontrado.</div>';
+}
+
+
+window.filterCommissions=function(){ renderCommissions(); };
+
+
+window.downloadCommissionReport=function(){
+  if(window.currentProfile?.role!=='MASTER' && !isGestor()){
+    return alert('Sem permissão para baixar o relatório de comissões.');
+  }
+
+  if(!window.jspdf?.jsPDF){
+    return alert('O módulo de PDF ainda não carregou. Atualize a página e tente novamente.');
+  }
+
+  const summary=getCommissionSummary(selectedOperationalDate);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+
+  const pageW=210;
+  const pageH=297;
+  const margin=14;
+  const purple=[76,35,107];
+  const dark=[38,35,45];
+  const muted=[105,100,115];
+  const soft=[248,246,251];
+  const line=[226,220,232];
+
+  const brl=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const txt=(v,x,y,size=9,style='normal',color=dark,align='left')=>{
+    doc.setFont('helvetica',style);
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    doc.text(String(v??''),x,y,{align});
+  };
+
+  const ensureSpace=(needed,y)=>{
+    if(y+needed>pageH-18){
+      doc.addPage();
+      return 18;
+    }
+    return y;
+  };
+
+  // Cabeçalho
+  doc.setFillColor(...purple);
+  doc.rect(0,0,pageW,31,'F');
+  txt('AVENTURA TURISMO',margin,12,10,'bold',[255,255,255]);
+  txt('RELATÓRIO DE COMISSÕES',margin,21,15,'bold',[255,255,255]);
+  txt(new Date(`${selectedOperationalDate}T12:00:00`).toLocaleDateString('pt-BR'),
+      pageW-margin,18,9,'bold',[255,255,255],'right');
+
+  let y=40;
+
+  // Resumo
+  txt('RESUMO',margin,y,10,'bold',purple);
+  y+=6;
+
+  [
+    ['Total de comissões',summary.total],
+    ['A pagar',summary.pending],
+    ['Já pago',summary.paid]
+  ].forEach(([label,value],i)=>{
+    const w=(pageW-(margin*2)-6)/3;
+    const x=margin+i*(w+3);
+    doc.setFillColor(...soft);
+    doc.roundedRect(x,y,w,20,3,3,'F');
+    txt(label,x+4,y+7,7,'normal',muted);
+    txt(brl(value),x+4,y+15,10,'bold',dark);
+  });
+
+  y+=28;
+
+  // Quem precisa receber
+  txt('QUEM PRECISA RECEBER',margin,y,10,'bold',purple);
+  y+=6;
+
+  const pendingAgents=summary.agents.filter(a=>a.pending>0.005);
+
+  if(!pendingAgents.length){
+    txt('Nenhuma comissão pendente para esta data.',margin,y,9,'normal',muted);
+    y+=10;
+  }else{
+    pendingAgents.forEach(x=>{
+      y=ensureSpace(28,y);
+
+      doc.setDrawColor(...line);
+      doc.setFillColor(252,251,253);
+      doc.roundedRect(margin,y,pageW-(margin*2),24,3,3,'FD');
+
+      txt(x.agent.name,margin+4,y+7,9,'bold',dark);
+      txt(x.agent.partner||'',margin+4,y+13,7,'normal',muted);
+
+      const pix=x.agent.pixKey?`PIX: ${x.agent.pixKey}`:'PIX: não cadastrado';
+      txt(pix,margin+4,y+19,7,'normal',muted);
+
+      txt(`${x.passengers} passageiro(s)`,pageW-margin-4,y+7,7,'normal',muted,'right');
+      txt(`Base: ${brl(x.base)}`,pageW-margin-4,y+13,7,'normal',muted,'right');
+      txt(`A PAGAR: ${brl(x.pending)}`,pageW-margin-4,y+20,10,'bold',purple,'right');
+
+      y+=29;
+    });
+  }
+
+  y=ensureSpace(20,y);
+  txt('DETALHAMENTO POR VOUCHER',margin,y,10,'bold',purple);
+  y+=5;
+
+  const rows=summary.rows.map(r=>[
+    `#${r.voucher.voucherNumber||''}`,
+    r.agent.name,
+    String(Number(r.voucher.passengers||0)),
+    brl(r.base),
+    `${Number(r.percent).toLocaleString('pt-BR')}%`,
+    brl(r.amount),
+    r.paid?'PAGO':'PENDENTE'
+  ]);
+
+  if(doc.autoTable){
+    doc.autoTable({
+      startY:y,
+      head:[['Voucher','Agente','Pax','Base','%','Comissão','Status']],
+      body:rows.length?rows:[['Nenhuma comissão','','','','','','']],
+      margin:{left:margin,right:margin,bottom:16},
+      theme:'grid',
+      styles:{
+        font:'helvetica',
+        fontSize:7,
+        cellPadding:2,
+        lineColor:line,
+        lineWidth:.2,
+        textColor:dark
+      },
+      headStyles:{
+        fillColor:purple,
+        textColor:[255,255,255],
+        fontStyle:'bold'
+      },
+      alternateRowStyles:{fillColor:[249,247,251]},
+      columnStyles:{
+        2:{halign:'center',cellWidth:12},
+        3:{halign:'right',cellWidth:26},
+        4:{halign:'center',cellWidth:13},
+        5:{halign:'right',cellWidth:27},
+        6:{halign:'center',cellWidth:19}
+      }
+    });
+  }
+
+  const pages=doc.getNumberOfPages();
+  for(let i=1;i<=pages;i++){
+    doc.setPage(i);
+    doc.setDrawColor(...line);
+    doc.line(margin,pageH-12,pageW-margin,pageH-12);
+    txt('Aventura Turismo - Comissões',margin,pageH-7,7,'normal',muted);
+    txt(`Página ${i} de ${pages}`,pageW-margin,pageH-7,7,'normal',muted,'right');
+  }
+
+  doc.save(`relatorio-comissoes-${selectedOperationalDate}.pdf`);
+};
+
+function renderCommissions(){
+  const box=document.getElementById('commissionsList');
+  const summaryBox=document.getElementById('commissionsSummary');
+  if(!box || !summaryBox) return;
+
+  const dateKey=selectedOperationalDate;
+  const all=getCommissionRows(dateKey);
+  const agentFilter=document.getElementById('commissionAgentFilter')?.value||'ALL';
+  const statusFilter=document.getElementById('commissionStatusFilter')?.value||'PENDENTE';
+
+  const agentSelect=document.getElementById('commissionAgentFilter');
+  if(agentSelect){
+    const current=agentSelect.value||'ALL';
+    const agents=[...new Map(all.map(r=>[r.agent.id,r.agent])).values()]
+      .sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+    agentSelect.innerHTML='<option value="ALL">Todos</option>'+
+      agents.map(a=>`<option value="${a.id}">${escHtml(a.name)}${a.partner?` • ${escHtml(a.partner)}`:''}</option>`).join('');
+    agentSelect.value=[...agentSelect.options].some(o=>o.value===current)?current:'ALL';
+  }
+
+  const filtered=all.filter(r=>{
+    if(agentFilter!=='ALL' && r.agent.id!==agentFilter) return false;
+    if(statusFilter==='PENDENTE' && r.paid) return false;
+    if(statusFilter==='PAGO' && !r.paid) return false;
+    return true;
+  });
+
+  const summary=getCommissionSummary(dateKey);
+  summaryBox.innerHTML=`
+    <div><span>Total de comissões</span><strong>${money(summary.total)}</strong></div>
+    <div><span>A pagar</span><strong>${money(summary.pending)}</strong></div>
+    <div><span>Já pago</span><strong>${money(summary.paid)}</strong></div>
+  `;
+
+  box.innerHTML=filtered.length?filtered.map(r=>{
+    const v=r.voucher;
+    const formula=`${Number(v.passengers||0)} passageiro(s) • base ${money(r.base)} × ${Number(r.percent).toLocaleString('pt-BR')}%`;
+    return `<article class="commission-card">
+      <div>
+        <span class="eyebrow">VOUCHER #${escHtml(v.voucherNumber||'')}</span>
+        <h3>${escHtml(r.agent.name)}</h3>
+        <p>${escHtml(r.agent.partner||'')} • ${escHtml(v.name||'Passageiro')}</p>
+        <p>${formula}</p>
+        ${r.agent.pixKey?`<p><strong>PIX:</strong> ${escHtml(r.agent.pixKey)}</p>`:''}
+        ${r.agent.bankName||r.agent.bankAccount?`<p><strong>Banco:</strong> ${escHtml(r.agent.bankName||'-')} • Ag. ${escHtml(r.agent.bankAgency||'-')} • Cc. ${escHtml(r.agent.bankAccount||'-')}</p>`:''}
+      </div>
+      <div class="commission-values">
+        <div><span>Base</span><strong>${money(r.base)}</strong></div>
+        <div><span>Comissão</span><strong>${Number(r.percent).toLocaleString('pt-BR')}%</strong></div>
+        <div><span>A receber</span><strong>${money(r.amount)}</strong></div>
+      </div>
+      <div class="commission-actions">
+        <span class="commission-status ${r.paid?'paid':'pending'}">${r.paid?'PAGO':'PENDENTE'}</span>
+        ${window.currentProfile?.role==='MASTER'
+          ? `<button class="${r.paid?'ghost':'primary'}" onclick="setCommissionPaid('${v.id}',${r.paid?'false':'true'})">${r.paid?'Reabrir':'Marcar pago'}</button>`
+          : ''}
+      </div>
+    </article>`;
+  }).join(''):'<div class="voucher-empty">Nenhuma comissão encontrada para este dia/filtro.</div>';
+}
+
+window.showReportSection=function(section){
+  document.querySelectorAll('.report-subtab').forEach(b=>b.classList.toggle('active',b.dataset.reportSection===section));
+  document.getElementById('dailyReport')?.classList.toggle('hidden',section!=='operacional');
+  document.getElementById('commissionReport')?.classList.toggle('hidden',section!=='comissoes');
+  localStorage.setItem('aventura_report_section',section);
+  if(section==='comissoes') renderCommissionReport();
+};
+
+function renderCommissionReport(){
+  const box=document.getElementById('commissionReport');
+  if(!box) return;
+
+  const summary=getCommissionSummary(selectedOperationalDate);
+  const dateLabel=new Date(`${selectedOperationalDate}T12:00:00`).toLocaleDateString('pt-BR');
+
+  box.innerHTML=`
+    <div class="daily-report-toolbar">
+      <div>
+        <strong>Comissões do dia selecionado</strong>
+        <small>${dateLabel}</small>
+      </div>
+    </div>
+
+    <div class="cards commission-report-cards">
+      <article class="card"><span>Total de comissões</span><strong>${money(summary.total)}</strong></article>
+      <article class="card"><span>A pagar</span><strong>${money(summary.pending)}</strong></article>
+      <article class="card"><span>Já pago</span><strong>${money(summary.paid)}</strong></article>
+    </div>
+
+    <div class="report-divider"><strong>QUEM PRECISA RECEBER</strong></div>
+
+    ${summary.agents.length?summary.agents.map(x=>`
+      <div class="commission-report-agent">
+        <div>
+          <strong>${escHtml(x.agent.name)}</strong>
+          <small>${escHtml(x.agent.partner||'')}</small>
+          ${x.agent.pixKey?`<small>PIX: ${escHtml(x.agent.pixKey)}</small>`:''}
+          ${x.agent.bankName||x.agent.bankAccount?`<small>${escHtml(x.agent.bankName||'-')} • Ag. ${escHtml(x.agent.bankAgency||'-')} • Cc. ${escHtml(x.agent.bankAccount||'-')}</small>`:''}
+        </div>
+        <div class="commission-report-values">
+          <span>${x.passengers} passageiro(s)</span>
+          <span>Base: ${money(x.base)}</span>
+          <strong>A pagar: ${money(x.pending)}</strong>
+        </div>
+      </div>
+    `).join(''):'<small>Nenhuma comissão de agente para esta data.</small>'}
+
+    <div class="report-divider"><strong>DETALHAMENTO POR VOUCHER</strong></div>
+    ${summary.rows.length?summary.rows.map(r=>`
+      <div class="report-row commission-detail-row">
+        <span>
+          #${escHtml(r.voucher.voucherNumber||'')} • ${escHtml(r.agent.name)}<br>
+          <small>${Number(r.voucher.passengers||0)} passageiro(s) • ${money(r.base)} × ${Number(r.percent).toLocaleString('pt-BR')}%</small>
+        </span>
+        <strong>${money(r.amount)} ${r.paid?'• PAGO':'• PENDENTE'}</strong>
+      </div>
+    `).join(''):'<small>Nenhum voucher com comissão.</small>'}
+  `;
+}
+
 function renderAll(){
   if(!document.getElementById('todayLabel'))return;
-  document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
-  const open=state.tabs
+  const selectedDateObj=new Date(`${selectedOperationalDate}T12:00:00`);
+  document.getElementById('todayLabel').textContent=selectedDateObj.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const dayTabs=getDayTabs(selectedOperationalDate);
+  const open=dayTabs
     .filter(t=>t.status==='ABERTA')
     .sort((a,b)=>Number(a.number)-Number(b.number));
-  const closed=state.tabs
+  const closed=dayTabs
     .filter(t=>t.status==='FECHADA')
     .sort((a,b)=>Number(a.number)-Number(b.number));
   const totalClosed=closed.reduce((s,t)=>s+t.total,0);
-  const sectorSales=sector=>state.orders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector===sector).reduce((s,i)=>s+i.qty*i.price,0),0);
-  document.getElementById('openTabs').textContent=open.length;document.getElementById('ordersToday').textContent=state.orders.length;document.getElementById('salesToday').textContent=money(totalClosed);document.getElementById('barSales').textContent=money(sectorSales('BAR'));document.getElementById('kitchenSales').textContent=money(sectorSales('COZINHA'));
+  const selectedIds=new Set(dayTabs.map(t=>t.id));
+  const dayOrders=state.orders.filter(o=>selectedIds.has(o.tabId)&&o.status!=='CANCELADO');
+  const dayPayments=state.payments.filter(p=>selectedIds.has(p.tabId));
+  const sectorSales=sector=>dayOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector===sector).reduce((s,i)=>s+i.qty*i.price,0),0);
+  document.getElementById('openTabs').textContent=open.length;document.getElementById('ordersToday').textContent=dayOrders.length;document.getElementById('salesToday').textContent=money(totalClosed);document.getElementById('barSales').textContent=money(sectorSales('BAR'));document.getElementById('kitchenSales').textContent=money(sectorSales('COZINHA'));
   document.getElementById('dashboardTabs').innerHTML=open.length?open.slice(0,6).map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><button class="ghost" onclick="openTab('${t.id}')">Abrir</button></div>`).join(''):'<small>Nenhuma comanda aberta.</small>';
   const low=state.products.filter(p=>p.stock<=p.min);document.getElementById('criticalStock').innerHTML=low.length?low.map(p=>`<div class="list-item"><div><strong>${p.name}</strong><br><small>${p.sector}</small></div><strong class="low">${p.stock}</strong></div>`).join(''):'<small>Estoque dentro dos mínimos.</small>';
-  document.getElementById('tabsGrid').innerHTML=open.map(t=>{const total=state.orders.filter(o=>o.tabId===t.id&&o.status!=='CANCELADO').reduce((s,o)=>s+o.total,0);return `<article class="tab-card"><div class="panel-head"><div><h3>Comanda ${t.number}</h3><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><span class="pill">ABERTA</span></div><div class="value">${money(total)}</div><button class="primary" onclick="openTab('${t.id}')">Lançar pedido</button></article>`}).join('')||'<small>Nenhuma comanda aberta.</small>';
+  document.getElementById('tabsGrid').innerHTML=open.map(t=>{const total=state.orders.filter(o=>o.tabId===t.id&&o.status!=='CANCELADO').reduce((s,o)=>s+o.total,0);return `<article class="tab-card"><div class="panel-head"><div><h3>Comanda ${t.number}</h3><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)${t.agent?` • Agente: ${escHtml(t.agent)}`:''}</small></div><span class="pill">ABERTA</span></div><div class="value">${money(total)}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" onclick="openTab('${t.id}')">Lançar pedido</button>${canManageComanda()?`<button class="ghost" onclick="editTab('${t.id}')">Editar</button><button class="danger" onclick="deleteTabPermanently('${t.id}')">Apagar comanda</button>`:''}</div></article>`}).join('')||'<small>Nenhuma comanda aberta.</small>';
   document.getElementById('productsBody').innerHTML=state.products.map(p=>`<tr><td><strong>${p.name}</strong></td><td>${p.sector}</td><td>${money(p.price)}</td><td class="${p.stock<=p.min?'low':''}">${p.stock}</td><td><button class="danger" onclick="deleteProduct('${p.id}')">Excluir</button></td></tr>`).join('');
   document.getElementById('stockCards').innerHTML=state.products.map(p=>`<article class="stock-card"><small>${p.sector}</small><h3>${p.name}</h3><strong class="${p.stock<=p.min?'low':''}">${p.stock}</strong><p>Mínimo: ${p.min}</p><button class="ghost" onclick="stockAdjust('${p.id}',1)">+ Entrada</button> <button class="ghost" onclick="stockAdjust('${p.id}',-1)">- Saída</button></article>`).join('');
-  const byMethod=m=>state.payments.filter(p=>p.method===m).reduce((s,p)=>s+p.amount,0);
-  document.getElementById('cashTotal').textContent=money(byMethod('DINHEIRO'));document.getElementById('pixTotal').textContent=money(byMethod('PIX'));document.getElementById('cardTotal').textContent=money(byMethod('CARTAO'));document.getElementById('receivedTotal').textContent=money(state.payments.reduce((s,p)=>s+p.amount,0));
+  const byMethod=m=>dayPayments.filter(p=>p.method===m).reduce((s,p)=>s+p.amount,0);
+  document.getElementById('cashTotal').textContent=money(byMethod('DINHEIRO'));document.getElementById('pixTotal').textContent=money(byMethod('PIX'));document.getElementById('cardTotal').textContent=money(byMethod('CARTAO'));document.getElementById('receivedTotal').textContent=money(dayPayments.reduce((s,p)=>s+p.amount,0));
   document.getElementById('closedTabs').innerHTML=closed.length?closed.map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><strong>${money(t.total)}</strong></div>`).join(''):'<small>Nenhuma comanda fechada.</small>';
   let daily;
   try{
-    daily=getTodayOperationalData();
+    daily=getTodayOperationalData(selectedOperationalDate);
   }catch(err){
     console.error('Erro ao montar relatório diário:',err);
     const reportBox=document.getElementById('dailyReport');
@@ -2153,7 +3488,7 @@ function renderAll(){
   }
   document.getElementById('dailyReport').innerHTML=`
     <div class="daily-report-toolbar">
-      <div><strong>Resumo operacional de hoje</strong><small>${new Date().toLocaleDateString('pt-BR')}</small></div>
+      <div><strong>Resumo operacional de hoje</strong><small>${new Date(`${selectedOperationalDate}T12:00:00`).toLocaleDateString('pt-BR')}</small></div>
       ${isGestor()?'<button class="primary" onclick="downloadDailyReport()">Baixar relatório em PDF</button>':''}
     </div>
     <div class="report-row"><span>Pessoas registradas</span><strong>${daily.people}</strong></div>
@@ -2169,14 +3504,245 @@ function renderAll(){
     <div class="report-row"><span>Dinheiro</span><strong>${money(daily.cash)}</strong></div>
     <div class="report-row"><span>Cartão</span><strong>${money(daily.card)}</strong></div>
     <div class="report-row"><span>Ticket médio</span><strong>${money(daily.avgTicket)}</strong></div>
-    <div class="report-row"><span>Total recebido</span><strong>${money(daily.totalReceived)}</strong></div>`;
+    <div class="report-row"><span>Total recebido</span><strong>${money(daily.totalReceived)}</strong></div>
+    <div class="report-divider"><strong>PASSAGENS / VOUCHERS</strong></div>
+    <div class="report-row"><span>Passagens cadastradas</span><strong>${daily.passages?.count||0}</strong></div>
+    <div class="report-row"><span>Passageiros</span><strong>${daily.passages?.passengers||0}</strong></div>
+    <div class="report-row"><span>Passageiros inteira</span><strong>${daily.passages?.fullPassengers||0}</strong></div>
+    <div class="report-row"><span>Passageiros meia</span><strong>${daily.passages?.halfPassengers||0}</strong></div>
+    <div class="report-row"><span>Passageiros cortesia</span><strong>${daily.passages?.courtesyPassengers||0}</strong></div>
+    <div class="report-row"><span>Passageiros free / bebê</span><strong>${daily.passages?.freePassengers||0}</strong></div>
+    <div class="report-row"><span>Valor total das passagens</span><strong>${money(daily.passages?.passageTotal||0)}</strong></div>
+    <div class="report-row"><span>Pago antes do embarque</span><strong>${money(daily.passages?.paidBefore||0)}</strong></div>
+    <div class="report-row"><span>Recebido no barco</span><strong>${money(daily.passages?.receivedOnBoard||0)}</strong></div>
+    <div class="report-row"><span>Barco • Dinheiro</span><strong>${money(daily.passages?.cash||0)}</strong></div>
+    <div class="report-row"><span>Barco • PIX</span><strong>${money(daily.passages?.pix||0)}</strong></div>
+    <div class="report-row"><span>Barco • Cartão</span><strong>${money(daily.passages?.card||0)}</strong></div>
+    <div class="report-row"><span>Saldo pendente de passagens</span><strong>${money(daily.passages?.pending||0)}</strong></div>
+    <div class="report-divider"><strong>REPASSES</strong></div>
+    <div class="report-row report-row-highlight"><span>Taxa de serviço 10% - TOTAL DA EQUIPE</span><strong>${money(daily.serviceFee)}</strong></div>
+    <div class="report-row"><span>Carol - 1/3 da taxa de serviço</span><strong>${money(daily.serviceCarol)}</strong></div>
+    <div class="report-row"><span>Hiago - 1/3 da taxa de serviço</span><strong>${money(daily.serviceHiago)}</strong></div>
+    <div class="report-row"><span>João - 1/3 da taxa de serviço</span><strong>${money(daily.serviceJoao)}</strong></div>
+    <div class="report-row"><span>Couvert artístico bruto</span><strong>${money(daily.couvert)}</strong></div>
+    <div class="report-row"><span>Taxa máquina sobre couvert (10%)</span><strong>${money(daily.couvertMachineFee)}</strong></div>
+    <div class="report-row"><span>Dimas - líquido do couvert</span><strong>${money(daily.couvertDimas)}</strong></div>`;
+
+  const opDate=document.getElementById('operationalDate');
+  if(opDate) opDate.value=selectedOperationalDate;
+  const opStatus=document.getElementById('operationalDayStatus');
+  if(opStatus){
+    const isToday=selectedDateIsToday();
+    opStatus.textContent=isToday?'DIA ATUAL':'HISTÓRICO';
+    opStatus.className=`operational-status ${isToday?'current':'history'}`;
+  }
+  const opNav=document.getElementById('operationalCalendar');
+  if(opNav){
+    opNav.classList.toggle('master-calendar-hidden',window.currentProfile?.role!=='MASTER');
+  }
+
   renderVouchers();
   document.getElementById('companyName').value=state.settings.company;document.getElementById('boatName').value=state.settings.boat;document.getElementById('printBridgeUrl').value=state.settings.printBridge;
 }
 
-window.addEventListener('DOMContentLoaded',()=>{wireTabs();document.getElementById('btnOpenModal').onclick=()=>openNewTabModal();renderAll();});
-window.addEventListener('aventura-auth-ready',async()=>{
-  document.getElementById('connectionStatus').textContent='Sincronizando...';
-  await loadCloudState();
-  document.getElementById('connectionStatus').textContent='Supabase • sincronizado';
+window.addEventListener('DOMContentLoaded',async()=>{
+  wireTabs();
+  document.getElementById('btnOpenModal').onclick=()=>openNewTabModal();
+
+  const restoreView=()=>{
+    const saved=localStorage.getItem('aventura_current_view')||'dashboard';
+    const btn=document.querySelector(`.tab[data-view="${saved}"]`);
+    const allowed = saved!=='usuarios' || window.currentProfile?.role==='MASTER';
+    if(btn && allowed) showView(saved);
+    else showView('dashboard');
+
+    if(saved==='relatorios'){
+      const section=localStorage.getItem('aventura_report_section')||'operacional';
+      setTimeout(()=>showReportSection(section),0);
+    }
+  };
+
+  const status=document.getElementById('connectionStatus');
+  if(status) status.textContent='Verificando servidor...';
+
+  const hasLocalServer=await detectLocalServer();
+
+  if(hasLocalServer){
+    try{
+      await loadLocalServerState();
+      startLocalServerSync();
+      startRemoteStatusMonitor();
+      if(status) status.textContent='SQLite local • sincronizado';
+      restoreView();
+    }catch(err){
+      console.error(err);
+      if(status) status.textContent='SQLite local • erro';
+      renderAll();
+      restoreView();
+    }
+  }else{
+    renderAll();
+    restoreView();
+  }
 });
+
+window.addEventListener('aventura-auth-ready',async()=>{
+  // No modo offline, todos os celulares e o PC usam o mesmo SQLite via /api/state.
+  if(localServerReady || await detectLocalServer()){
+    if(!localServerReady){
+      try{
+        await loadLocalServerState();
+        startLocalServerSync();
+      }catch(err){
+        console.error(err);
+      }
+    }
+    const status=document.getElementById('connectionStatus');
+    if(status) status.textContent='SQLite local • sincronizado';
+    return;
+  }
+
+  const status=document.getElementById('connectionStatus');
+  if(status) status.textContent='Sincronizando...';
+  await loadCloudState();
+  if(status) status.textContent='Acesso remoto • Supabase';
+  setRemoteBadge('Nuvem • conectada','ok');
+});
+
+
+
+window.openUpdateCenter=async function(){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode atualizar o sistema.');
+  }
+
+  openModal('Atualização do sistema',`
+    <div class="update-center">
+      <div class="update-current">
+        <span>Versão instalada</span>
+        <strong>${window.AVENTURA_VERSION||'desconhecida'}</strong>
+      </div>
+      <div id="updateCenterStatus" class="update-center-status">Verificando versão oficial...</div>
+      <div id="updateCenterActions" class="checkout-actions"></div>
+      <div class="update-center-note">
+        <strong>Importante</strong>
+        <span>A atualização troca apenas os arquivos do sistema. O banco SQLite, comandas, vouchers, configurações de nuvem e credenciais locais são preservados.</span>
+      </div>
+    </div>
+  `);
+
+  await checkSystemUpdate(true);
+};
+
+window.checkSystemUpdate=async function(showInModal=false){
+  const statusEl=document.getElementById('updateCenterStatus');
+  const actionsEl=document.getElementById('updateCenterActions');
+
+  const setStatus=(msg,kind='info')=>{
+    if(statusEl){
+      statusEl.textContent=msg;
+      statusEl.className=`update-center-status ${kind}`;
+    }
+  };
+
+  try{
+    setStatus('Consultando a versão oficial...','info');
+
+    const res=await fetch('/api/update-check',{cache:'no-store'});
+    const data=await res.json();
+
+    if(!res.ok || !data.ok){
+      throw new Error(data.error||'Não foi possível verificar atualização.');
+    }
+
+    if(!data.configured){
+      setStatus('Atualizador ainda não configurado neste notebook.','warning');
+      if(actionsEl){
+        actionsEl.innerHTML='<button class="ghost" onclick="closeModal()">Fechar</button>';
+      }
+      return data;
+    }
+
+    if(data.available){
+      setStatus(`Nova versão disponível: ${data.latestVersion}`,'success');
+      if(actionsEl){
+        actionsEl.innerHTML=`
+          <button class="ghost" onclick="checkSystemUpdate(true)">Verificar novamente</button>
+          <button id="installUpdateBtn" class="primary" onclick="installSystemUpdate('${data.latestVersion}')">Atualizar para ${data.latestVersion}</button>
+        `;
+      }
+    }else{
+      setStatus(`Sistema atualizado. Versão atual: ${data.currentVersion}`,'success');
+      if(actionsEl){
+        actionsEl.innerHTML='<button class="ghost" onclick="closeModal()">Fechar</button>';
+      }
+    }
+
+    return data;
+  }catch(err){
+    console.error(err);
+    setStatus(`Erro ao verificar atualização: ${err?.message||err}`,'error');
+    if(actionsEl){
+      actionsEl.innerHTML='<button class="ghost" onclick="checkSystemUpdate(true)">Tentar novamente</button>';
+    }
+    return null;
+  }
+};
+
+window.installSystemUpdate=async function(latestVersion){
+  if(window.currentProfile?.role!=='MASTER'){
+    return alert('Somente o MASTER pode atualizar o sistema.');
+  }
+
+  if(!confirm(
+    `Atualizar o sistema para ${latestVersion}?\n\n`+
+    `O banco SQLite e os dados operacionais serão preservados.\n`+
+    `O servidor será atualizado e você precisará reiniciá-lo quando a tela solicitar.`
+  )) return;
+
+  const btn=document.getElementById('installUpdateBtn');
+  setButtonBusy(btn,true,'Atualizando...');
+  showActionToast('Baixando atualização oficial...','info',3000);
+
+  try{
+    const res=await fetch('/api/update-install',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expectedVersion:latestVersion})
+    });
+
+    const data=await res.json();
+    if(!res.ok || !data.ok){
+      throw new Error(data.error||'Falha ao instalar atualização.');
+    }
+
+    showActionToast(`Atualização ${data.version} instalada.`,'success',5000);
+
+    const statusEl=document.getElementById('updateCenterStatus');
+    const actionsEl=document.getElementById('updateCenterActions');
+
+    if(statusEl){
+      statusEl.textContent=`${data.version} instalada. Reinicie o servidor para concluir.`;
+      statusEl.className='update-center-status success';
+    }
+
+    if(actionsEl){
+      actionsEl.innerHTML=`
+        <button class="primary" onclick="location.reload()">Recarregar página</button>
+      `;
+    }
+
+    alert(
+      `Atualização ${data.version} instalada.\n\n`+
+      `Se o servidor.js também foi atualizado, feche a janela preta e execute novamente:\n\n`+
+      `cd C:\\AVENTURA-OFFLINE\nnode server.js`
+    );
+
+  }catch(err){
+    console.error(err);
+    showActionToast(`Erro na atualização: ${err?.message||err}`,'error',7000);
+    alert(`Não foi possível atualizar.\n\n${err?.message||err}`);
+    setButtonBusy(btn,false);
+  }
+};
+

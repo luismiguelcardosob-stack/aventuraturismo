@@ -1,0 +1,42 @@
+{
+  "version": "v.90M",
+  "notes": "Atualização automática: GitHub/site remoto passa a ser a fonte oficial dos arquivos.",
+  "files": [
+    {
+      "path": "public/app.js",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/app.js"
+    },
+    {
+      "path": "public/index.html",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/index.html"
+    },
+    {
+      "path": "public/styles.css",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/styles.css"
+    },
+    {
+      "path": "public/auth.js",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/auth.js"
+    },
+    {
+      "path": "public/supabase-config.js",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/supabase-config.js"
+    },
+    {
+      "path": "server.js",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/server.js"
+    },
+    {
+      "path": "database.js",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/database.js"
+    },
+    {
+      "path": "package.json",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/package.json"
+    },
+    {
+      "path": "package-lock.json",
+      "url": "https://luismiguelcardosob-stack.github.io/aventuraturismo/package-lock.json"
+    }
+  ]
+}
