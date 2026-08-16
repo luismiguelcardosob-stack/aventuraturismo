@@ -819,6 +819,94 @@ function showPrintPreview(order){
   `);
 }
 
+
+function getTabClosingValues(tabId){
+  const orders=state.orders.filter(o=>o.tabId===tabId&&o.status!=='CANCELADO');
+
+  const automaticOrders=orders.filter(o=>o.automatic);
+  const normalOrders=orders.filter(o=>!o.automatic);
+
+  const productSubtotal=normalOrders.reduce((sum,o)=>sum+Number(o.total||0),0);
+
+  const couvert=automaticOrders.reduce((sum,o)=>
+    sum+o.items.filter(i=>i.productId==='taxa-couvert-artistico')
+      .reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0)
+  ,0);
+
+  const sustentabilidade=automaticOrders.reduce((sum,o)=>
+    sum+o.items.filter(i=>i.productId==='taxa-sustentabilidade')
+      .reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0)
+  ,0);
+
+  return {orders,normalOrders,automaticOrders,productSubtotal,couvert,sustentabilidade};
+}
+
+window.updateClosingFees=function(){
+  const tab=state.tabs.find(t=>t.id===currentTabId);
+  if(!tab) return;
+
+  const base=getTabClosingValues(currentTabId);
+
+  const useService=document.getElementById('toggleServiceFee')?.checked!==false;
+  const useCouvert=document.getElementById('toggleCouvert')?.checked!==false;
+  const useSustainability=document.getElementById('toggleSustainability')?.checked!==false;
+
+  const serviceFee=useService?base.productSubtotal*0.10:0;
+  const couvert=useCouvert?base.couvert:0;
+  const sustentabilidade=useSustainability?base.sustentabilidade:0;
+  const total=base.productSubtotal+serviceFee+couvert+sustentabilidade;
+
+  const setText=(id,val)=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent=money(val);
+  };
+
+  setText('closingProductsSubtotal',base.productSubtotal);
+  setText('closingServiceFee',serviceFee);
+  setText('closingCouvert',couvert);
+  setText('closingSustainability',sustentabilidade);
+  setText('closingGrandTotal',total);
+  setText('checkoutTopTotal',total);
+  setText('mixedTotalReference',total);
+
+  const card=Math.max(0,Number(document.getElementById('payCard')?.value)||0);
+  const pix=Math.max(0,Number(document.getElementById('payPix')?.value)||0);
+  const cash=Math.max(0,Number(document.getElementById('payCash')?.value)||0);
+  const paid=card+pix+cash;
+  const remaining=total-paid;
+
+  const paidEl=document.getElementById('mixedPaid');
+  const remainingEl=document.getElementById('mixedRemaining');
+  const msg=document.getElementById('mixedPaymentMessage');
+  const btn=document.getElementById('confirmMixedPaymentBtn');
+
+  if(paidEl) paidEl.textContent=money(paid);
+  if(remainingEl) remainingEl.textContent=money(Math.abs(remaining)<0.005?0:remaining);
+
+  const balanced=Math.abs(remaining)<0.005;
+  if(btn) btn.disabled=!balanced;
+
+  if(msg){
+    msg.classList.remove('ok','error');
+    if(balanced){
+      msg.textContent='Pagamento distribuído corretamente.';
+      msg.classList.add('ok');
+    }else if(remaining>0){
+      msg.textContent=`Ainda faltam ${money(remaining)} para completar o pagamento.`;
+    }else{
+      msg.textContent=`O valor informado ultrapassa o total em ${money(Math.abs(remaining))}.`;
+      msg.classList.add('error');
+    }
+  }
+
+  return {
+    ...base,
+    useService,useCouvert,useSustainability,
+    serviceFee,couvert,sustentabilidade,total,
+    card,pix,cash,paid,remaining,balanced
+  };
+}
+
 window.openCheckout=function(){
   if(!canCloseComanda()){
     alert('Seu perfil não pode fechar comandas.');
@@ -828,30 +916,21 @@ window.openCheckout=function(){
   const tab=state.tabs.find(t=>t.id===currentTabId);
   if(!tab) return;
 
-  const orders=state.orders.filter(o=>o.tabId===currentTabId && o.status!=='CANCELADO');
-  const itemsMap={};
+  const base=getTabClosingValues(currentTabId);
 
-  for(const order of orders){
+  const productItemsMap={};
+  for(const order of base.normalOrders){
     for(const item of order.items){
-      const key=item.productId || item.name;
-      if(!itemsMap[key]){
-        itemsMap[key]={name:item.name,qty:0,price:item.price,total:0};
+      const key=item.productId||item.name;
+      if(!productItemsMap[key]){
+        productItemsMap[key]={name:item.name,qty:0,price:item.price,total:0};
       }
-      itemsMap[key].qty += Number(item.qty||0);
-      itemsMap[key].total += Number(item.qty||0)*Number(item.price||0);
+      productItemsMap[key].qty+=Number(item.qty||0);
+      productItemsMap[key].total+=Number(item.qty||0)*Number(item.price||0);
     }
   }
 
-  const items=Object.values(itemsMap);
-  const subtotal=items.reduce((s,i)=>s+i.total,0);
-
-  const automaticFees=orders
-    .filter(o=>o.automatic)
-    .reduce((sum,o)=>sum+Number(o.total||0),0);
-
-  const productBase=Math.max(0,subtotal-automaticFees);
-  const serviceFee=productBase*0.10;
-  const total=subtotal+serviceFee;
+  const items=Object.values(productItemsMap);
 
   const lines=items.length
     ? items.map(i=>`
@@ -859,7 +938,10 @@ window.openCheckout=function(){
         <div><strong>${i.qty}x ${i.name}</strong><small>${money(i.price)} cada</small></div>
         <strong>${money(i.total)}</strong>
       </div>`).join('')
-    : '<small>Nenhum consumo lançado.</small>';
+    : '<small>Nenhum produto consumido.</small>';
+
+  const initialService=base.productSubtotal*0.10;
+  const initialTotal=base.productSubtotal+initialService+base.couvert+base.sustentabilidade;
 
   openModal(`Fechamento • Comanda ${tab.number}`,`
     <div class="checkout-panel">
@@ -871,17 +953,58 @@ window.openCheckout=function(){
         </div>
         <div class="checkout-total-box">
           <span>Total a pagar</span>
-          <strong>${money(total)}</strong>
+          <strong id="checkoutTopTotal">${money(initialTotal)}</strong>
         </div>
       </div>
 
       <div class="checkout-items-list">${lines}</div>
 
+      <div class="closing-fees-panel">
+        <div class="closing-fees-title">
+          <strong>Taxas do fechamento</strong>
+          <small>Ligue ou desligue cada cobrança antes de receber.</small>
+        </div>
+
+        <label class="fee-toggle-row">
+          <div>
+            <strong>Taxa de serviço 10%</strong>
+            <small>10% somente sobre produtos/consumos.</small>
+          </div>
+          <div class="fee-toggle-end">
+            <strong id="closingServiceFee">${money(initialService)}</strong>
+            <input id="toggleServiceFee" type="checkbox" checked onchange="updateClosingFees()">
+          </div>
+        </label>
+
+        <label class="fee-toggle-row">
+          <div>
+            <strong>Couvert artístico</strong>
+            <small>${tab.people||1} pessoa(s) × R$ 12,00</small>
+          </div>
+          <div class="fee-toggle-end">
+            <strong id="closingCouvert">${money(base.couvert)}</strong>
+            <input id="toggleCouvert" type="checkbox" checked onchange="updateClosingFees()">
+          </div>
+        </label>
+
+        <label class="fee-toggle-row">
+          <div>
+            <strong>Taxa de sustentabilidade</strong>
+            <small>${tab.people||1} pessoa(s) × R$ 2,00</small>
+          </div>
+          <div class="fee-toggle-end">
+            <strong id="closingSustainability">${money(base.sustentabilidade)}</strong>
+            <input id="toggleSustainability" type="checkbox" checked onchange="updateClosingFees()">
+          </div>
+        </label>
+      </div>
+
       <div class="checkout-summary">
-        <div><span>Produtos/consumos</span><strong>${money(productBase)}</strong></div>
-        <div><span>Couvert + sustentabilidade</span><strong>${money(automaticFees)}</strong></div>
-        <div><span>Taxa de serviço (10% somente produtos)</span><strong>${money(serviceFee)}</strong></div>
-        <div class="checkout-summary-total"><span>Total final</span><strong>${money(total)}</strong></div>
+        <div><span>Subtotal dos produtos</span><strong id="closingProductsSubtotal">${money(base.productSubtotal)}</strong></div>
+        <div><span>Taxa de serviço 10%</span><strong id="closingServiceFeeSummary">${money(initialService)}</strong></div>
+        <div><span>Couvert artístico</span><strong id="closingCouvertSummary">${money(base.couvert)}</strong></div>
+        <div><span>Sustentabilidade</span><strong id="closingSustainabilitySummary">${money(base.sustentabilidade)}</strong></div>
+        <div class="checkout-summary-total"><span>Total final</span><strong id="closingGrandTotal">${money(initialTotal)}</strong></div>
       </div>
 
       <div class="mixed-payment-box">
@@ -890,7 +1013,7 @@ window.openCheckout=function(){
             <strong>Distribuição do pagamento</strong>
             <small>Preencha um ou mais meios de pagamento.</small>
           </div>
-          <strong class="mixed-total-reference">Total: ${money(total)}</strong>
+          <strong id="mixedTotalReference" class="mixed-total-reference">Total: ${money(initialTotal)}</strong>
         </div>
 
         <div class="mixed-payment-grid">
@@ -898,7 +1021,7 @@ window.openCheckout=function(){
             <span>Cartão</span>
             <div class="money-input-wrap">
               <span>R$</span>
-              <input id="payCard" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+              <input id="payCard" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateClosingFees()">
             </div>
           </label>
 
@@ -906,7 +1029,7 @@ window.openCheckout=function(){
             <span>PIX</span>
             <div class="money-input-wrap">
               <span>R$</span>
-              <input id="payPix" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+              <input id="payPix" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateClosingFees()">
             </div>
           </label>
 
@@ -914,14 +1037,14 @@ window.openCheckout=function(){
             <span>Dinheiro</span>
             <div class="money-input-wrap">
               <span>R$</span>
-              <input id="payCash" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+              <input id="payCash" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateClosingFees()">
             </div>
           </label>
         </div>
 
         <div class="mixed-payment-status">
           <div><span>Pago</span><strong id="mixedPaid">${money(0)}</strong></div>
-          <div><span>Falta</span><strong id="mixedRemaining">${money(total)}</strong></div>
+          <div><span>Falta</span><strong id="mixedRemaining">${money(initialTotal)}</strong></div>
         </div>
 
         <div id="mixedPaymentMessage" class="mixed-payment-message">
@@ -936,6 +1059,25 @@ window.openCheckout=function(){
       </div>
     </div>
   `);
+
+  // Mantém os valores dos espelhos do resumo sincronizados.
+  const mirrorObserver=()=>{
+    const vals=updateClosingFees();
+    const map=[
+      ['closingServiceFeeSummary',vals?.serviceFee],
+      ['closingCouvertSummary',vals?.couvert],
+      ['closingSustainabilitySummary',vals?.sustentabilidade]
+    ];
+    map.forEach(([id,v])=>{
+      const el=document.getElementById(id);
+      if(el) el.textContent=money(v||0);
+    });
+  };
+
+  ['toggleServiceFee','toggleCouvert','toggleSustainability','payCard','payPix','payCash']
+    .forEach(id=>document.getElementById(id)?.addEventListener('input',mirrorObserver));
+
+  mirrorObserver();
 };
 
 window.printCustomerReceipt=function(){
@@ -947,12 +1089,13 @@ window.printCustomerReceipt=function(){
   const tab=state.tabs.find(t=>t.id===currentTabId);
   if(!tab) return;
 
-  const orders=state.orders.filter(o=>o.tabId===currentTabId && o.status!=='CANCELADO');
-  const itemsMap={};
+  const values=updateClosingFees();
+  if(!values) return;
 
-  for(const order of orders){
+  const itemsMap={};
+  for(const order of values.normalOrders){
     for(const item of order.items){
-      const key=item.productId || item.name;
+      const key=item.productId||item.name;
       if(!itemsMap[key]) itemsMap[key]={name:item.name,qty:0,price:item.price,total:0};
       itemsMap[key].qty+=Number(item.qty||0);
       itemsMap[key].total+=Number(item.qty||0)*Number(item.price||0);
@@ -960,11 +1103,6 @@ window.printCustomerReceipt=function(){
   }
 
   const items=Object.values(itemsMap);
-  const subtotal=items.reduce((s,i)=>s+i.total,0);
-  const automaticFees=orders.filter(o=>o.automatic).reduce((sum,o)=>sum+Number(o.total||0),0);
-  const productBase=Math.max(0,subtotal-automaticFees);
-  const serviceFee=productBase*0.10;
-  const total=subtotal+serviceFee;
 
   openModal(`Nota • Comanda ${tab.number}`,`
     <div class="customer-receipt">
@@ -975,63 +1113,37 @@ window.printCustomerReceipt=function(){
         <span>Responsável: ${tab.customer||'Sem responsável'}</span>
         <span>Pessoas: ${tab.people||1}</span>
       </div>
+
       <hr>
-      ${items.map(i=>`
+
+      ${items.length?items.map(i=>`
         <div class="receipt-line">
           <span>${i.qty}x ${i.name}</span>
           <strong>${money(i.total)}</strong>
-        </div>`).join('')}
+        </div>`).join(''):'<div class="receipt-line"><span>Nenhum produto</span><strong>${money(0)}</strong></div>'}
+
       <hr>
-      <div class="receipt-line"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
-      <div class="receipt-line"><span>Taxa de serviço 10%</span><strong>${money(serviceFee)}</strong></div>
-      <div class="receipt-service-note">10% calculados somente sobre produtos/consumos; couvert e sustentabilidade não entram na base.</div>
+
+      <div class="receipt-line"><span>Subtotal dos produtos</span><strong>${money(values.productSubtotal)}</strong></div>
+      <div class="receipt-line"><span>Taxa de serviço 10%</span><strong>${money(values.serviceFee)}</strong></div>
+      <div class="receipt-line"><span>Couvert artístico</span><strong>${money(values.couvert)}</strong></div>
+      <div class="receipt-line"><span>Taxa de sustentabilidade</span><strong>${money(values.sustentabilidade)}</strong></div>
+
+      <div class="receipt-service-note">
+        10% calculados somente sobre produtos/consumos. Couvert e sustentabilidade não entram na base.
+      </div>
+
       <hr>
-      <div class="receipt-total"><span>TOTAL</span><strong>${money(total)}</strong></div>
+
+      <div class="receipt-total"><span>TOTAL</span><strong>${money(values.total)}</strong></div>
       <small>Prévia para conferência do cliente.</small>
     </div>
+
     <div class="checkout-actions">
       <button class="ghost" onclick="openCheckout()">Voltar ao fechamento</button>
       <button class="primary" onclick="window.print()">Imprimir pelo navegador</button>
     </div>
   `);
-};
-
-
-window.updateMixedPayment=function(total){
-  const card=Math.max(0,Number(document.getElementById('payCard')?.value)||0);
-  const pix=Math.max(0,Number(document.getElementById('payPix')?.value)||0);
-  const cash=Math.max(0,Number(document.getElementById('payCash')?.value)||0);
-
-  const paid=card+pix+cash;
-  const remaining=total-paid;
-
-  const paidEl=document.getElementById('mixedPaid');
-  const remainingEl=document.getElementById('mixedRemaining');
-  const message=document.getElementById('mixedPaymentMessage');
-  const button=document.getElementById('confirmMixedPaymentBtn');
-
-  if(paidEl) paidEl.textContent=money(paid);
-  if(remainingEl) remainingEl.textContent=money(Math.abs(remaining)<0.005?0:remaining);
-
-  const balanced=Math.abs(remaining)<0.005;
-
-  if(button) button.disabled=!balanced;
-
-  if(message){
-    message.classList.remove('ok','error');
-
-    if(balanced){
-      message.textContent='Pagamento distribuído corretamente.';
-      message.classList.add('ok');
-    }else if(remaining>0){
-      message.textContent=`Ainda faltam ${money(remaining)} para completar o pagamento.`;
-    }else{
-      message.textContent=`O valor informado ultrapassa o total em ${money(Math.abs(remaining))}.`;
-      message.classList.add('error');
-    }
-  }
-
-  return {card,pix,cash,paid,remaining,balanced};
 };
 
 window.confirmCloseTab=function(){
@@ -1043,81 +1155,86 @@ window.confirmCloseTab=function(){
   const tab=state.tabs.find(t=>t.id===currentTabId);
   if(!tab) return;
 
-  const closingOrders=state.orders.filter(o=>o.tabId===currentTabId && o.status!=='CANCELADO');
-  const subtotal=closingOrders.reduce((s,o)=>s+Number(o.total||0),0);
-  const automaticFees=closingOrders.filter(o=>o.automatic).reduce((s,o)=>s+Number(o.total||0),0);
-  const productBase=Math.max(0,subtotal-automaticFees);
-  const serviceFee=productBase*0.10;
-  const total=subtotal+serviceFee;
+  const values=updateClosingFees();
+  if(!values) return;
 
-  const mixed=updateMixedPayment(total);
-
-  if(!mixed.balanced){
+  if(!values.balanced){
     return alert('A soma de Cartão, PIX e Dinheiro precisa ser exatamente igual ao total da comanda.');
   }
 
-  if(mixed.paid<=0){
+  if(values.paid<=0){
     return alert('Informe o pagamento antes de fechar a comanda.');
   }
 
   tab.status='FECHADA';
   tab.closedAt=new Date().toISOString();
-  tab.subtotal=subtotal;
-  tab.serviceFee=serviceFee;
-  tab.total=total;
+
+  tab.productSubtotal=values.productSubtotal;
+  tab.serviceFee=values.serviceFee;
+  tab.chargedCouvert=values.couvert;
+  tab.chargedSustainability=values.sustentabilidade;
+  tab.feeSettings={
+    service:values.useService,
+    couvert:values.useCouvert,
+    sustainability:values.useSustainability
+  };
+  tab.total=values.total;
+
   tab.closedBy=window.currentProfile?.id||null;
   tab.closedByName=window.currentProfile?.full_name||'Usuário';
 
   const paymentTime=new Date().toISOString();
   const paymentCommon={
     tabId:tab.id,
-    subtotal,
-    serviceFee,
+    subtotal:values.productSubtotal,
+    serviceFee:values.serviceFee,
+    couvert:values.couvert,
+    sustentabilidade:values.sustentabilidade,
     createdAt:paymentTime,
     createdBy:window.currentProfile?.id||null,
     createdByName:window.currentProfile?.full_name||'Usuário'
   };
 
-  if(mixed.card>0){
+  if(values.card>0){
     state.payments.push({
       id:id(),
       ...paymentCommon,
       method:'CARTAO',
-      amount:mixed.card
+      amount:values.card
     });
   }
 
-  if(mixed.pix>0){
+  if(values.pix>0){
     state.payments.push({
       id:id(),
       ...paymentCommon,
       method:'PIX',
-      amount:mixed.pix
+      amount:values.pix
     });
   }
 
-  if(mixed.cash>0){
+  if(values.cash>0){
     state.payments.push({
       id:id(),
       ...paymentCommon,
       method:'DINHEIRO',
-      amount:mixed.cash
+      amount:values.cash
     });
   }
 
   tab.paymentBreakdown={
-    CARTAO:mixed.card,
-    PIX:mixed.pix,
-    DINHEIRO:mixed.cash
+    CARTAO:values.card,
+    PIX:values.pix,
+    DINHEIRO:values.cash
   };
 
   save();
   currentTabId=null;
   closeModal();
+
   if(isGerente()) showView('caixa');
   else showView('comandas');
 };
-
 window.openProductModal=function(){
   if(window.hasPermission&&!window.hasPermission('produtos'))return alert('Sem permissão.');
   openModal('Novo produto',`<div class="form-grid"><label>Nome<input id="pName"></label><label>Setor<select id="pSector"><option>BAR</option><option>COZINHA</option></select></label><label>Preço<input id="pPrice" type="number" step="0.01"></label><label>Estoque inicial<input id="pStock" type="number"></label><label>Estoque mínimo<input id="pMin" type="number" value="5"></label></div><div class="checkout"><button class="primary" onclick="createProduct()">Salvar produto</button></div>`);
@@ -1157,13 +1274,19 @@ function getTodayOperationalData(){
   const open=todaysTabs.filter(t=>t.status==='ABERTA');
   const closed=todaysTabs.filter(t=>t.status==='FECHADA');
   const automaticOrders=todaysOrders.filter(o=>o.automatic);
-  const couvert=automaticOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.productId==='taxa-couvert-artistico').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
-  const sustentabilidade=automaticOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.productId==='taxa-sustentabilidade').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
-  const productOrders=todaysOrders.filter(o=>!o.automatic);
-  const productSales=productOrders.reduce((s,o)=>s+Number(o.total||0),0);
-  const barSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector==='BAR').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
-  const kitchenSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector==='COZINHA').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
-  const extrasSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>!['BAR','COZINHA'].includes(i.sector)).reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+
+  const couvert=closed.reduce((sum,t)=>{
+    if(t.chargedCouvert!=null) return sum+Number(t.chargedCouvert||0);
+    const tabAuto=automaticOrders.filter(o=>o.tabId===t.id);
+    return sum+tabAuto.reduce((s,o)=>s+o.items.filter(i=>i.productId==='taxa-couvert-artistico').reduce((a,i)=>a+Number(i.qty||0)*Number(i.price||0),0),0);
+  },0);
+
+  const sustentabilidade=closed.reduce((sum,t)=>{
+    if(t.chargedSustainability!=null) return sum+Number(t.chargedSustainability||0);
+    const tabAuto=automaticOrders.filter(o=>o.tabId===t.id);
+    return sum+tabAuto.reduce((s,o)=>s+o.items.filter(i=>i.productId==='taxa-sustentabilidade').reduce((a,i)=>a+Number(i.qty||0)*Number(i.price||0),0),0);
+  },0);
+
   const serviceFee=closed.reduce((s,t)=>s+Number(t.serviceFee||0),0);
   const totalReceived=todaysPayments.reduce((s,p)=>s+Number(p.amount||0),0);
   const byMethod=m=>todaysPayments.filter(p=>p.method===m).reduce((s,p)=>s+Number(p.amount||0),0);

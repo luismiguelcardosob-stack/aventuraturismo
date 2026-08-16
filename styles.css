@@ -901,3 +901,82 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
 .report-row strong{
   font-variant-numeric:tabular-nums;
 }
+
+
+/* Chaves das taxas no fechamento */
+.closing-fees-panel{
+  display:grid;
+  gap:10px;
+  padding:15px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  background:#faf9fc;
+}
+.closing-fees-title{
+  display:grid;
+  gap:3px;
+  margin-bottom:2px;
+}
+.closing-fees-title small{
+  color:var(--muted);
+}
+.fee-toggle-row{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  align-items:center;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+.fee-toggle-row>div:first-child{
+  display:grid;
+  gap:3px;
+}
+.fee-toggle-row small{
+  color:var(--muted);
+}
+.fee-toggle-end{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.fee-toggle-end input[type="checkbox"]{
+  appearance:none;
+  width:46px;
+  height:26px;
+  border-radius:999px;
+  background:#d7d1df;
+  position:relative;
+  transition:.15s ease;
+  cursor:pointer;
+}
+.fee-toggle-end input[type="checkbox"]::after{
+  content:"";
+  position:absolute;
+  width:20px;
+  height:20px;
+  left:3px;
+  top:3px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+  transition:.15s ease;
+}
+.fee-toggle-end input[type="checkbox"]:checked{
+  background:var(--brand);
+}
+.fee-toggle-end input[type="checkbox"]:checked::after{
+  transform:translateX(20px);
+}
+@media(max-width:650px){
+  .fee-toggle-row{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .fee-toggle-end{
+    width:100%;
+    justify-content:space-between;
+  }
+}
