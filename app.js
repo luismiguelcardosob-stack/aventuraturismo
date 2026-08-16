@@ -1,7 +1,7 @@
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const id=()=>crypto.randomUUID();
 
-const MENU_VERSION='2026-08-cardapio-01';
+const MENU_VERSION='2026-08-cardapio-02';
 const MENU_PRODUCTS=[
     {id:"almoco-peixe-camarao",name:"Filé de peixe ao molho de camarão",category:"ALMOÇO",sector:"COZINHA",price:70,stock:999,min:0},
     {id:"almoco-peixe-palmito",name:"Filé de peixe ao creme de palmito",category:"ALMOÇO",sector:"COZINHA",price:65,stock:999,min:0},
@@ -35,7 +35,9 @@ const MENU_PRODUCTS=[
     {id:"drink-dose-cachaca",name:"Dose de cachaça Gabriela ou pinga",category:"DRINKS",sector:"BAR",price:15,stock:999,min:0},
     {id:"drink-dose-vodka",name:"Dose de vodka",category:"DRINKS",sector:"BAR",price:20,stock:999,min:0},
     {id:"drink-batida",name:"Batida",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
-    {id:"drink-carpe-diem",name:"Carpe Diem",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0}
+    {id:"drink-carpe-diem",name:"Carpe Diem",category:"DRINKS",sector:"BAR",price:35,stock:999,min:0},
+    {id:"extra-colete-salva-vidas",name:"Colete salva-vidas",category:"EXTRAS",sector:"EXTRAS",price:30,stock:999,min:0,description:"Locação do início ao fim do passeio"},
+    {id:"extra-doce-marinheiros",name:"Doce dos Marinheiros",category:"EXTRAS",sector:"BAR",price:10,stock:999,min:0}
   ];
 
 const defaults={
@@ -276,7 +278,7 @@ function renderTabModal(){
   const existing=state.orders.filter(o=>o.tabId===currentTabId&&o.status!=='CANCELADO');
   const historical=existing.reduce((s,o)=>s+o.total,0);
   const cartTotal=cart.reduce((s,l)=>s+l.qty*l.price,0);
-  const categoryOrder=['ALMOÇO','PORÇÕES','BEBIDAS','DRINKS'];
+  const categoryOrder=['ALMOÇO','PORÇÕES','BEBIDAS','DRINKS','EXTRAS'];
   const productButtons=categoryOrder.map(category=>{
     const products=state.products.filter(p=>p.category===category);
     if(!products.length)return '';
@@ -285,14 +287,15 @@ function renderTabModal(){
       <div class="product-picker">
         ${products.map(p=>`<button class="product-btn" onclick="addProduct('${p.id}')">
           <strong>${p.name}</strong>
-          <small>${p.sector} • ${money(p.price)}</small>
+          <small>${p.sector==='EXTRAS'?'SEM IMPRESSÃO':p.sector} • ${money(p.price)}</small>
+          ${p.description?`<em class="product-description">${p.description}</em>`:''}
         </button>`).join('')}
       </div>
     </div>`;
   }).join('');
   const cartLines=cart.length?cart.map((l,i)=>`<div class="order-line"><span>${l.qty}x ${l.name}</span><strong>${money(l.qty*l.price)}</strong><button class="danger" onclick="removeCart(${i})">×</button></div>`).join(''):'<small>Nenhum item novo.</small>';
   const history=existing.length?existing.map(o=>`<div class="list-item"><div><strong>${new Date(o.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong><br><small>${o.items.map(i=>`${i.qty}x ${i.name}`).join(', ')}</small></div><strong>${money(o.total)}</strong></div>`).join(''):'<small>Sem pedidos enviados.</small>';
-  openModal(`Comanda ${tab.number}`,`<div class="panel-head"><div><strong>${tab.customer||'Sem responsável'}</strong><br><small>${tab.people||1} pessoa(s) • Total já enviado: ${money(historical)}</small></div><span class="pill">${tab.status}</span></div><h4>Novo pedido</h4><div class="menu-catalog">${productButtons}</div><div class="order-lines">${cartLines}</div><div class="checkout"><strong>Novo pedido: ${money(cartTotal)}</strong><button class="primary" onclick="sendOrder()" ${cart.length?'':'disabled'}>Enviar e imprimir</button></div><h4>Pedidos enviados</h4><div class="list">${history}</div><div class="checkout">
+  openModal(`Comanda ${tab.number}`,`<div class="panel-head"><div><strong>${tab.customer||'Sem responsável'}</strong><br><small>${tab.people||1} pessoa(s) • Total já enviado: ${money(historical)}</small></div><span class="pill">${tab.status}</span></div><h4>Novo pedido</h4><div class="menu-catalog">${productButtons}</div><div class="order-lines">${cartLines}</div><div class="checkout"><strong>Novo pedido: ${money(cartTotal)}</strong><button class="primary" onclick="sendOrder()" ${cart.length?'':'disabled'}>Enviar pedido</button></div><h4>Pedidos enviados</h4><div class="list">${history}</div><div class="checkout">
       ${window.hasPermission && window.hasPermission('caixa')
         ? '<button class="primary" onclick="openCheckout()">Fechar comanda</button>'
         : '<span class="checkout-warning">Somente usuários com acesso ao Caixa podem fechar esta comanda.</span>'}
@@ -326,15 +329,15 @@ window.sendOrder=async function(){
 };
 
 function receiptHtml(sector,items,tab,order){
-  if(!items.length) return '';
-  return `<div class="print-preview-ticket">
+  if(!items.length) return `<div class="print-preview-empty"><strong>${sector}</strong><span>Nenhum item para este setor.</span></div>`;
+  return `<div class="print-preview-ticket" data-ticket="${sector}">
     <div class="print-preview-sector">${sector}</div>
     <strong>${state.settings.company}</strong>
     <span>${state.settings.boat}</span>
     <hr>
     <strong>COMANDA ${tab.number}</strong>
     <span>Responsável: ${tab.customer||'Sem responsável'}</span>
-        <span>Pessoas: ${tab.people||1}</span>
+    <span>Pessoas: ${tab.people||1}</span>
     <span>${new Date(order.createdAt).toLocaleString('pt-BR')}</span>
     <hr>
     ${items.map(i=>`<div class="print-item"><b>${i.qty}x</b><span>${i.name}</span></div>`).join('')}
@@ -343,20 +346,70 @@ function receiptHtml(sector,items,tab,order){
   </div>`;
 }
 
+window.switchPrintTab=function(sector){
+  document.querySelectorAll('.production-tab').forEach(b=>b.classList.toggle('active',b.dataset.sector===sector));
+  document.querySelectorAll('.production-pane').forEach(p=>p.classList.toggle('active',p.dataset.sector===sector));
+};
+
+window.printSector=function(sector){
+  document.body.dataset.printSector=sector;
+  window.print();
+  setTimeout(()=>{delete document.body.dataset.printSector;},300);
+};
+
+window.printBothSectors=function(){
+  document.body.dataset.printSector='AMBOS';
+  window.print();
+  setTimeout(()=>{delete document.body.dataset.printSector;},300);
+};
+
 function showPrintPreview(order){
   const tab=state.tabs.find(t=>t.id===order.tabId);
   const bar=order.items.filter(i=>i.sector==='BAR');
   const cozinha=order.items.filter(i=>i.sector==='COZINHA');
-  openModal('Divisão para impressão',
-    `<div class="print-preview-note"><strong>PRÉVIA DE IMPRESSÃO</strong><span>As impressoras estão desativadas por enquanto. Almoço/Porções vão para COZINHA e Bebidas/Drinks vão para BAR. Couvert e sustentabilidade ficam somente na conta do cliente.</span></div>
-     <div class="print-preview-grid">
-       ${bar.length?receiptHtml('BAR',bar,tab,order):'<div class="print-preview-empty"><strong>BAR</strong><span>Nenhum item para o bar.</span></div>'}
-       ${cozinha.length?receiptHtml('COZINHA',cozinha,tab,order):'<div class="print-preview-empty"><strong>COZINHA</strong><span>Nenhum item para a cozinha.</span></div>'}
-     </div>
-     <div class="checkout">
-       <button class="ghost" onclick="renderTabModal()">Voltar para a comanda</button>
-       <button class="primary" onclick="closeModal()">Concluir</button>
-     </div>`);
+  const extras=order.items.filter(i=>!['BAR','COZINHA'].includes(i.sector));
+
+  openModal('Pedido enviado • Conferir impressão',`
+    <div class="print-preview-note">
+      <strong>PEDIDO SALVO</strong>
+      <span>Confira o que será enviado para cada setor. A impressão só acontece depois que você escolher abaixo.</span>
+    </div>
+
+    <div class="production-tabs">
+      <button class="production-tab active" data-sector="BAR" onclick="switchPrintTab('BAR')">
+        BAR <span>${bar.reduce((s,i)=>s+Number(i.qty||0),0)}</span>
+      </button>
+      <button class="production-tab" data-sector="COZINHA" onclick="switchPrintTab('COZINHA')">
+        COZINHA <span>${cozinha.reduce((s,i)=>s+Number(i.qty||0),0)}</span>
+      </button>
+    </div>
+
+    <div class="production-panes">
+      <div class="production-pane active" data-sector="BAR">
+        ${receiptHtml('BAR',bar,tab,order)}
+      </div>
+      <div class="production-pane" data-sector="COZINHA">
+        ${receiptHtml('COZINHA',cozinha,tab,order)}
+      </div>
+    </div>
+
+    ${extras.length?`
+      <div class="non-production-items">
+        <strong>Itens sem impressão de produção</strong>
+        ${extras.map(i=>`<span>${i.qty}x ${i.name}</span>`).join('')}
+      </div>`:''}
+
+    <div class="print-action-grid">
+      <button class="ghost" onclick="printSector('BAR')" ${bar.length?'':'disabled'}>Imprimir BAR</button>
+      <button class="ghost" onclick="printSector('COZINHA')" ${cozinha.length?'':'disabled'}>Imprimir COZINHA</button>
+      <button class="primary" onclick="printBothSectors()" ${bar.length||cozinha.length?'':'disabled'}>Imprimir os dois</button>
+    </div>
+
+    <div class="checkout">
+      <button class="ghost" onclick="renderTabModal()">Voltar para a comanda</button>
+      <button class="primary" onclick="closeModal()">Concluir</button>
+    </div>
+  `);
 }
 
 window.openCheckout=function(){
@@ -383,7 +436,15 @@ window.openCheckout=function(){
   }
 
   const items=Object.values(itemsMap);
-  const total=items.reduce((s,i)=>s+i.total,0);
+  const subtotal=items.reduce((s,i)=>s+i.total,0);
+
+  const automaticFees=orders
+    .filter(o=>o.automatic)
+    .reduce((sum,o)=>sum+Number(o.total||0),0);
+
+  const productBase=Math.max(0,subtotal-automaticFees);
+  const serviceFee=productBase*0.10;
+  const total=subtotal+serviceFee;
 
   const lines=items.length
     ? items.map(i=>`
@@ -408,6 +469,13 @@ window.openCheckout=function(){
       </div>
 
       <div class="checkout-items-list">${lines}</div>
+
+      <div class="checkout-summary">
+        <div><span>Produtos/consumos</span><strong>${money(productBase)}</strong></div>
+        <div><span>Couvert + sustentabilidade</span><strong>${money(automaticFees)}</strong></div>
+        <div><span>Taxa de serviço (10% somente produtos)</span><strong>${money(serviceFee)}</strong></div>
+        <div class="checkout-summary-total"><span>Total final</span><strong>${money(total)}</strong></div>
+      </div>
 
       <div class="checkout-payment">
         <label>
@@ -451,7 +519,11 @@ window.printCustomerReceipt=function(){
   }
 
   const items=Object.values(itemsMap);
-  const total=items.reduce((s,i)=>s+i.total,0);
+  const subtotal=items.reduce((s,i)=>s+i.total,0);
+  const automaticFees=orders.filter(o=>o.automatic).reduce((sum,o)=>sum+Number(o.total||0),0);
+  const productBase=Math.max(0,subtotal-automaticFees);
+  const serviceFee=productBase*0.10;
+  const total=subtotal+serviceFee;
 
   openModal(`Nota • Comanda ${tab.number}`,`
     <div class="customer-receipt">
@@ -468,6 +540,10 @@ window.printCustomerReceipt=function(){
           <span>${i.qty}x ${i.name}</span>
           <strong>${money(i.total)}</strong>
         </div>`).join('')}
+      <hr>
+      <div class="receipt-line"><span>Subtotal</span><strong>${money(subtotal)}</strong></div>
+      <div class="receipt-line"><span>Taxa de serviço 10%</span><strong>${money(serviceFee)}</strong></div>
+      <div class="receipt-service-note">10% calculados somente sobre produtos/consumos; couvert e sustentabilidade não entram na base.</div>
       <hr>
       <div class="receipt-total"><span>TOTAL</span><strong>${money(total)}</strong></div>
       <small>Prévia para conferência do cliente.</small>
@@ -488,15 +564,20 @@ window.confirmCloseTab=function(){
   const tab=state.tabs.find(t=>t.id===currentTabId);
   if(!tab) return;
 
-  const total=state.orders
-    .filter(o=>o.tabId===currentTabId && o.status!=='CANCELADO')
-    .reduce((s,o)=>s+o.total,0);
+  const closingOrders=state.orders.filter(o=>o.tabId===currentTabId && o.status!=='CANCELADO');
+  const subtotal=closingOrders.reduce((s,o)=>s+Number(o.total||0),0);
+  const automaticFees=closingOrders.filter(o=>o.automatic).reduce((s,o)=>s+Number(o.total||0),0);
+  const productBase=Math.max(0,subtotal-automaticFees);
+  const serviceFee=productBase*0.10;
+  const total=subtotal+serviceFee;
 
   const method=document.getElementById('checkoutPaymentMethod')?.value;
   if(!method) return alert('Selecione a forma de pagamento.');
 
   tab.status='FECHADA';
   tab.closedAt=new Date().toISOString();
+  tab.subtotal=subtotal;
+  tab.serviceFee=serviceFee;
   tab.total=total;
   tab.closedBy=window.currentProfile?.id||null;
   tab.closedByName=window.currentProfile?.full_name||'Usuário';
@@ -506,6 +587,8 @@ window.confirmCloseTab=function(){
     tabId:tab.id,
     method,
     amount:total,
+    subtotal,
+    serviceFee,
     createdAt:new Date().toISOString(),
     createdBy:window.currentProfile?.id||null,
     createdByName:window.currentProfile?.full_name||'Usuário'
