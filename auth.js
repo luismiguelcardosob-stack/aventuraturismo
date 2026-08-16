@@ -28,13 +28,62 @@
     $("appShell")?.classList.remove("hidden");
   }
 
+  const ROLE_BASE_ACCESS = {
+    MASTER: {
+      dashboard:true,comandas:true,vouchers:true,agentes:true,comissoes:true,
+      produtos:true,estoque:true,caixa:true,relatorios:true,configuracoes:true
+    },
+    GESTOR: {
+      dashboard:true,comandas:true,vouchers:true,agentes:true,comissoes:true,
+      produtos:true,estoque:true,caixa:true,relatorios:true,configuracoes:true
+    },
+    GERENTE: {
+      dashboard:true,comandas:true,vouchers:false,agentes:false,comissoes:false,
+      produtos:false,estoque:true,caixa:true,relatorios:true,configuracoes:false
+    },
+    GARCOM: {
+      dashboard:false,comandas:true,vouchers:false,agentes:false,comissoes:false,
+      produtos:false,estoque:false,caixa:false,relatorios:false,configuracoes:false
+    }
+  };
+
+  const ACCESS_LABELS = {
+    dashboard:"Painel",
+    comandas:"Comandas",
+    vouchers:"Vouchers",
+    agentes:"Agentes",
+    comissoes:"Comissões",
+    produtos:"Produtos",
+    estoque:"Estoque",
+    caixa:"Caixa",
+    relatorios:"Relatórios",
+    configuracoes:"Configurações"
+  };
+
+  function normalizedRole(role){
+    return role==="USER"?"GARCOM":(role||"GARCOM");
+  }
+
+  function effectivePermissions(profile){
+    const role=normalizedRole(profile?.role);
+    const base={...(ROLE_BASE_ACCESS[role]||ROLE_BASE_ACCESS.GARCOM)};
+
+    // MASTER é sempre acesso total e não aceita bloqueios individuais.
+    if(role==="MASTER") return {...ROLE_BASE_ACCESS.MASTER};
+
+    const overrides=profile?.permissions||{};
+    Object.keys(ACCESS_LABELS).forEach(key=>{
+      if(typeof overrides[key]==="boolean"){
+        base[key]=overrides[key];
+      }
+    });
+
+    return base;
+  }
+
   function allowed(p,key){
     if(!p || p.active===false) return false;
-    const role=p.role||'GARCOM';
-    if(role==='MASTER'||role==='GESTOR') return true;
-    if(role==='GERENTE') return ['dashboard','comandas','estoque','caixa','relatorios'].includes(key);
-    if(role==='GARCOM'||role==='USER') return ['comandas'].includes(key);
-    return false;
+    return Boolean(effectivePermissions(p)[key]);
   }
 
   window.hasPermission = key => allowed(window.currentProfile,key);
@@ -376,27 +425,51 @@
 
   window.loadUsers=async function(){
     const box=$("usersAccessList");
-    if(!box || window.currentProfile?.role!=="MASTER") return;
+    if(!box) return;
+
+    if(window.currentProfile?.role!=="MASTER"){
+      box.innerHTML='<div class="users-load-error"><strong>Acesso restrito.</strong><span>Somente o MASTER pode administrar usuários.</span></div>';
+      return;
+    }
 
     box.innerHTML='<div class="loading-users">Carregando usuários...</div>';
 
     try{
-      const {data,error}=await window.sb
-        .from("user_profiles")
-        .select("id,full_name,email,role,active,created_at")
-        .order("created_at",{ascending:true});
+      const result=await Promise.race([
+        window.sb
+          .from("user_profiles")
+          .select("id,full_name,email,role,active,permissions,created_at")
+          .order("created_at",{ascending:true}),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error("Tempo limite ao carregar usuários.")),10000))
+      ]);
 
+      const {data,error}=result;
       if(error) throw error;
 
-      if(!data || !data.length){
+      if(!Array.isArray(data) || data.length===0){
         box.innerHTML='<div class="loading-users">Nenhum usuário encontrado.</div>';
         return;
       }
 
       box.innerHTML=data.map(u=>{
-        const master=u.role==="MASTER";
-        const normalizedRole=u.role==="USER"?"GARCOM":u.role;
-        const roleInfo=ROLE_ACCESS[normalizedRole]||ROLE_ACCESS.GARCOM;
+        const role=normalizedRole(u.role);
+        const master=role==="MASTER";
+        const perms=effectivePermissions(u);
+
+        const accessCards=Object.entries(ACCESS_LABELS).map(([key,label])=>{
+          const on=Boolean(perms[key]);
+
+          return `<label class="user-access-toggle ${on?'enabled':'disabled'}">
+            <input
+              type="checkbox"
+              ${on?'checked':''}
+              ${master?'disabled':''}
+              onchange="setUserPermission('${u.id}','${key}',this.checked)"
+            >
+            <span class="access-toggle-dot"></span>
+            <span>${esc(label)}</span>
+          </label>`;
+        }).join("");
 
         return `<article class="user-access-card ${u.active===false?'user-disabled':''}">
           <div class="user-access-head">
@@ -406,32 +479,33 @@
             </div>
 
             <div class="user-access-actions">
-              <span class="pill">${esc(roleInfo.label)}</span>
+              <span class="pill">${role==="MASTER"?"MASTER":role==="GESTOR"?"GESTOR":role==="GERENTE"?"GERENTE":"GARÇOM"}</span>
 
-              ${master ? "" : `
+              ${master?"":`
                 <select class="role-select" onchange="setUserRole('${u.id}',this.value)">
-                  <option value="GARCOM" ${normalizedRole==="GARCOM"?"selected":""}>Garçom</option>
-                  <option value="GERENTE" ${normalizedRole==="GERENTE"?"selected":""}>Gerente</option>
-                  <option value="GESTOR" ${normalizedRole==="GESTOR"?"selected":""}>Gestor</option>
+                  <option value="GARCOM" ${role==="GARCOM"?"selected":""}>Garçom</option>
+                  <option value="GERENTE" ${role==="GERENTE"?"selected":""}>Gerente</option>
+                  <option value="GESTOR" ${role==="GESTOR"?"selected":""}>Gestor</option>
                 </select>
 
                 <label class="active-toggle">
-                  <input type="checkbox"
-                    ${u.active?"checked":""}
-                    onchange="setUserActive('${u.id}',this.checked)">
-                  <span>${u.active?"Ativo":"Bloqueado"}</span>
+                  <input type="checkbox" ${u.active!==false?"checked":""} onchange="setUserActive('${u.id}',this.checked)">
+                  <span>${u.active!==false?"Ativo":"Bloqueado"}</span>
                 </label>
               `}
             </div>
           </div>
 
-          <div class="access-detail-block">
-            <div class="access-detail-title">
-              <strong>O que este usuário pode acessar</strong>
-              <small>${esc(roleInfo.description)}</small>
+          <div class="access-control-section">
+            <div class="access-control-title">
+              <strong>Acessos deste usuário</strong>
+              <small>${master
+                ?"O MASTER possui todos os acessos e não pode ser limitado."
+                :"Você pode alterar os acessos individualmente, mesmo mantendo o perfil."
+              }</small>
             </div>
-            <div class="role-access-tags">
-              ${roleInfo.accesses.map(a=>`<span>${esc(a)}</span>`).join("")}
+            <div class="user-access-toggle-grid">
+              ${accessCards}
             </div>
           </div>
         </article>`;
@@ -450,11 +524,42 @@
 
   window.setUserPermission=async function(uid,key,value){
     if(window.currentProfile?.role!=="MASTER") return;
-    const {data}=await window.sb.from("user_profiles").select("permissions,role").eq("id",uid).single();
-    if(!data || data.role==="MASTER") return;
-    const permissions={...(data.permissions||{}),[key]:value};
-    const {error}=await window.sb.from("user_profiles").update({permissions,updated_at:new Date().toISOString()}).eq("id",uid);
-    if(error){alert("Não foi possível alterar.");await loadUsers();}
+    if(!(key in ACCESS_LABELS)) return;
+
+    const {data:user,error:readError}=await window.sb
+      .from("user_profiles")
+      .select("role,permissions")
+      .eq("id",uid)
+      .single();
+
+    if(readError){
+      alert("Não foi possível carregar o usuário: "+readError.message);
+      await loadUsers();
+      return;
+    }
+
+    if(normalizedRole(user?.role)==="MASTER"){
+      alert("Os acessos do MASTER não podem ser limitados.");
+      await loadUsers();
+      return;
+    }
+
+    const permissions={...(user?.permissions||{})};
+    permissions[key]=Boolean(value);
+
+    const {error}=await window.sb
+      .from("user_profiles")
+      .update({
+        permissions,
+        updated_at:new Date().toISOString()
+      })
+      .eq("id",uid);
+
+    if(error){
+      alert("Não foi possível alterar o acesso: "+error.message);
+    }
+
+    await loadUsers();
   };
 
   window.setUserActive=async function(uid,value){
@@ -535,14 +640,35 @@
     if(window.currentProfile?.role!=="MASTER") return;
     if(!["GARCOM","GERENTE","GESTOR"].includes(role)) return;
 
-    const {data}=await window.sb.from("user_profiles").select("role").eq("id",uid).single();
-    if(data?.role==="MASTER") return;
+    const {data,error:readError}=await window.sb
+      .from("user_profiles")
+      .select("role")
+      .eq("id",uid)
+      .single();
 
-    const {error}=await window.sb.from("user_profiles")
-      .update({role,updated_at:new Date().toISOString()})
+    if(readError){
+      alert("Não foi possível localizar o usuário.");
+      return;
+    }
+
+    if(normalizedRole(data?.role)==="MASTER"){
+      alert("O perfil MASTER não pode ser alterado.");
+      return;
+    }
+
+    const {error}=await window.sb
+      .from("user_profiles")
+      .update({
+        role,
+        permissions:{},
+        updated_at:new Date().toISOString()
+      })
       .eq("id",uid);
 
-    if(error) alert("Não foi possível alterar o perfil.");
+    if(error){
+      alert("Não foi possível alterar o perfil: "+error.message);
+    }
+
     await loadUsers();
   };
 

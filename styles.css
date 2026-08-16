@@ -1261,3 +1261,88 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .commission-filters{grid-template-columns:1fr}
   .commissions-summary{grid-template-columns:1fr}
 }
+
+
+/* HOTFIX - lista e acessos individuais */
+.access-control-section{
+  margin-top:14px;
+  padding:13px;
+  border-radius:12px;
+  background:#f8f6fb;
+  border:1px solid #ece6f2;
+}
+.access-control-title{
+  display:grid;
+  gap:3px;
+  margin-bottom:10px;
+}
+.access-control-title small{
+  color:var(--muted);
+  font-size:11px;
+}
+.user-access-toggle-grid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(120px,1fr));
+  gap:8px;
+}
+.user-access-toggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+}
+.user-access-toggle input{
+  display:none;
+}
+.user-access-toggle .access-toggle-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#cfc8d8;
+  box-shadow:0 0 0 3px #f1eef4;
+}
+.user-access-toggle.enabled{
+  border-color:#cbb6ee;
+  background:#f5efff;
+  color:var(--brand);
+}
+.user-access-toggle.enabled .access-toggle-dot{
+  background:var(--brand);
+  box-shadow:0 0 0 3px #e8dbfb;
+}
+.user-access-toggle input:disabled + .access-toggle-dot{
+  background:#7b4ac3;
+}
+.user-access-toggle:has(input:disabled){
+  cursor:not-allowed;
+  opacity:.8;
+}
+.loading-users{
+  padding:18px 10px;
+  color:var(--muted);
+  font-size:13px;
+}
+.users-load-error{
+  display:grid;
+  gap:8px;
+  padding:14px;
+  border:1px solid #efc5c5;
+  border-radius:12px;
+  background:#fff6f6;
+  color:#913333;
+}
+.users-load-error span{
+  font-size:12px;
+}
+@media(max-width:1050px){
+  .user-access-toggle-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:700px){
+  .user-access-toggle-grid{grid-template-columns:repeat(2,1fr)}
+}
