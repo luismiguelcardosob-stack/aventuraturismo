@@ -884,21 +884,55 @@ window.openCheckout=function(){
         <div class="checkout-summary-total"><span>Total final</span><strong>${money(total)}</strong></div>
       </div>
 
-      <div class="checkout-payment">
-        <label>
-          <span>Forma de pagamento</span>
-          <select id="checkoutPaymentMethod">
-            <option value="PIX">PIX</option>
-            <option value="DINHEIRO">Dinheiro</option>
-            <option value="CARTAO">Cartão</option>
-          </select>
-        </label>
+      <div class="mixed-payment-box">
+        <div class="mixed-payment-head">
+          <div>
+            <strong>Distribuição do pagamento</strong>
+            <small>Preencha um ou mais meios de pagamento.</small>
+          </div>
+          <strong class="mixed-total-reference">Total: ${money(total)}</strong>
+        </div>
+
+        <div class="mixed-payment-grid">
+          <label>
+            <span>Cartão</span>
+            <div class="money-input-wrap">
+              <span>R$</span>
+              <input id="payCard" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+            </div>
+          </label>
+
+          <label>
+            <span>PIX</span>
+            <div class="money-input-wrap">
+              <span>R$</span>
+              <input id="payPix" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+            </div>
+          </label>
+
+          <label>
+            <span>Dinheiro</span>
+            <div class="money-input-wrap">
+              <span>R$</span>
+              <input id="payCash" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" oninput="updateMixedPayment(${total})">
+            </div>
+          </label>
+        </div>
+
+        <div class="mixed-payment-status">
+          <div><span>Pago</span><strong id="mixedPaid">${money(0)}</strong></div>
+          <div><span>Falta</span><strong id="mixedRemaining">${money(total)}</strong></div>
+        </div>
+
+        <div id="mixedPaymentMessage" class="mixed-payment-message">
+          Distribua o valor entre Cartão, PIX e Dinheiro.
+        </div>
       </div>
 
       <div class="checkout-actions">
         <button class="ghost" onclick="printCustomerReceipt()">Imprimir / visualizar nota</button>
         <button class="ghost" onclick="renderTabModal()">Voltar</button>
-        <button class="primary" onclick="confirmCloseTab()">Confirmar pagamento e fechar</button>
+        <button id="confirmMixedPaymentBtn" class="primary" onclick="confirmCloseTab()" disabled>Confirmar pagamento e fechar</button>
       </div>
     </div>
   `);
@@ -962,6 +996,44 @@ window.printCustomerReceipt=function(){
   `);
 };
 
+
+window.updateMixedPayment=function(total){
+  const card=Math.max(0,Number(document.getElementById('payCard')?.value)||0);
+  const pix=Math.max(0,Number(document.getElementById('payPix')?.value)||0);
+  const cash=Math.max(0,Number(document.getElementById('payCash')?.value)||0);
+
+  const paid=card+pix+cash;
+  const remaining=total-paid;
+
+  const paidEl=document.getElementById('mixedPaid');
+  const remainingEl=document.getElementById('mixedRemaining');
+  const message=document.getElementById('mixedPaymentMessage');
+  const button=document.getElementById('confirmMixedPaymentBtn');
+
+  if(paidEl) paidEl.textContent=money(paid);
+  if(remainingEl) remainingEl.textContent=money(Math.abs(remaining)<0.005?0:remaining);
+
+  const balanced=Math.abs(remaining)<0.005;
+
+  if(button) button.disabled=!balanced;
+
+  if(message){
+    message.classList.remove('ok','error');
+
+    if(balanced){
+      message.textContent='Pagamento distribuído corretamente.';
+      message.classList.add('ok');
+    }else if(remaining>0){
+      message.textContent=`Ainda faltam ${money(remaining)} para completar o pagamento.`;
+    }else{
+      message.textContent=`O valor informado ultrapassa o total em ${money(Math.abs(remaining))}.`;
+      message.classList.add('error');
+    }
+  }
+
+  return {card,pix,cash,paid,remaining,balanced};
+};
+
 window.confirmCloseTab=function(){
   if(!canCloseComanda()){
     alert('Seu perfil não pode fechar comandas.');
@@ -978,8 +1050,15 @@ window.confirmCloseTab=function(){
   const serviceFee=productBase*0.10;
   const total=subtotal+serviceFee;
 
-  const method=document.getElementById('checkoutPaymentMethod')?.value;
-  if(!method) return alert('Selecione a forma de pagamento.');
+  const mixed=updateMixedPayment(total);
+
+  if(!mixed.balanced){
+    return alert('A soma de Cartão, PIX e Dinheiro precisa ser exatamente igual ao total da comanda.');
+  }
+
+  if(mixed.paid<=0){
+    return alert('Informe o pagamento antes de fechar a comanda.');
+  }
 
   tab.status='FECHADA';
   tab.closedAt=new Date().toISOString();
@@ -989,17 +1068,48 @@ window.confirmCloseTab=function(){
   tab.closedBy=window.currentProfile?.id||null;
   tab.closedByName=window.currentProfile?.full_name||'Usuário';
 
-  state.payments.push({
-    id:id(),
+  const paymentTime=new Date().toISOString();
+  const paymentCommon={
     tabId:tab.id,
-    method,
-    amount:total,
     subtotal,
     serviceFee,
-    createdAt:new Date().toISOString(),
+    createdAt:paymentTime,
     createdBy:window.currentProfile?.id||null,
     createdByName:window.currentProfile?.full_name||'Usuário'
-  });
+  };
+
+  if(mixed.card>0){
+    state.payments.push({
+      id:id(),
+      ...paymentCommon,
+      method:'CARTAO',
+      amount:mixed.card
+    });
+  }
+
+  if(mixed.pix>0){
+    state.payments.push({
+      id:id(),
+      ...paymentCommon,
+      method:'PIX',
+      amount:mixed.pix
+    });
+  }
+
+  if(mixed.cash>0){
+    state.payments.push({
+      id:id(),
+      ...paymentCommon,
+      method:'DINHEIRO',
+      amount:mixed.cash
+    });
+  }
+
+  tab.paymentBreakdown={
+    CARTAO:mixed.card,
+    PIX:mixed.pix,
+    DINHEIRO:mixed.cash
+  };
 
   save();
   currentTabId=null;
