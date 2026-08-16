@@ -8,7 +8,7 @@
   window.sb = window.supabase.createClient(cfg.url, cfg.anonKey);
   window.currentProfile = null;
 
-  const ALL = {dashboard:true,comandas:true,vouchers:true,produtos:true,estoque:true,caixa:true,relatorios:true,configuracoes:true};
+  const ALL = {dashboard:true,comandas:true,vouchers:true,agentes:true,comissoes:true,produtos:true,estoque:true,caixa:true,relatorios:true,configuracoes:true};
   const $ = id => document.getElementById(id);
 
   function showLogin(msg=""){

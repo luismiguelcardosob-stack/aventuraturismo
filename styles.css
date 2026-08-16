@@ -1144,3 +1144,120 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .voucher-card-head,.voucher-arrival-summary{flex-direction:column}
   .voucher-arrival-due{text-align:left}
 }
+
+
+/* Agentes e Comissões */
+.agents-list,.commissions-list{display:grid;gap:12px}
+.agent-card,.commission-card{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) auto auto;
+  gap:16px;
+  align-items:center;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 22px rgba(35,27,49,.05);
+}
+.agent-card h3,.commission-card h3{margin:4px 0}
+.agent-card p,.commission-card p{margin:0;color:var(--muted);font-size:12px}
+.agent-stats,.commission-values{
+  display:grid;
+  grid-template-columns:repeat(3,auto);
+  gap:8px;
+}
+.agent-stats>div,.commission-values>div{
+  display:grid;
+  gap:3px;
+  padding:9px 11px;
+  border-radius:10px;
+  background:#faf9fc;
+  min-width:92px;
+}
+.agent-stats span,.commission-values span{font-size:10px;color:var(--muted)}
+.agent-actions,.commission-actions{display:flex;gap:8px}
+.agent-inactive{opacity:.55}
+.agent-form{display:grid;gap:13px}
+.agent-form label{
+  display:grid;
+  gap:6px;
+  font-size:12px;
+  font-weight:800;
+}
+.agent-form input{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+}
+.agent-note{
+  padding:12px;
+  border-radius:11px;
+  background:#f3eefb;
+  color:#5f4a78;
+  font-size:12px;
+}
+.voucher-commission-preview{
+  display:grid;
+  gap:4px;
+  padding:11px 13px;
+  border-radius:11px;
+  background:#eef8f2;
+  color:#176444;
+  font-size:12px;
+}
+.voucher-commission-preview .warn{
+  color:#9a6517;
+}
+.commissions-summary{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,220px));
+  gap:10px;
+  margin-bottom:14px;
+}
+.commissions-summary>div{
+  display:grid;
+  gap:4px;
+  padding:13px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+.commissions-summary span{font-size:11px;color:var(--muted)}
+.commissions-summary strong{font-size:18px}
+.commission-filters{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(180px,260px));
+  gap:10px;
+  margin-bottom:14px;
+}
+.commission-filters label{
+  display:grid;
+  gap:5px;
+  font-size:12px;
+  font-weight:800;
+}
+.commission-filters select{
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+}
+.commission-status{
+  padding:7px 10px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:900;
+  text-align:center;
+}
+.commission-status.pending{background:#fff4df;color:#9a6517}
+.commission-status.paid{background:#eaf8f0;color:#176444}
+
+@media(max-width:950px){
+  .agent-card,.commission-card{grid-template-columns:1fr}
+  .agent-stats,.commission-values{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:650px){
+  .agent-stats,.commission-values{grid-template-columns:1fr}
+  .commission-filters{grid-template-columns:1fr}
+  .commissions-summary{grid-template-columns:1fr}
+}

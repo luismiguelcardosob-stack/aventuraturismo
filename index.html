@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=vouchers24" />
+  <link rel="stylesheet" href="./styles.css?v=agents25" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -100,6 +100,8 @@
       <button class="tab active" data-view="dashboard" data-permission="dashboard">Painel</button>
       <button class="tab" data-view="comandas" data-permission="comandas">Comandas</button>
       <button class="tab" data-view="vouchers" data-permission="vouchers">Vouchers</button>
+      <button class="tab" data-view="agentes" data-permission="agentes">Agentes</button>
+      <button class="tab" data-view="comissoes" data-permission="comissoes">Comissões</button>
       <button class="tab" data-view="produtos" data-permission="produtos">Produtos</button>
       <button class="tab" data-view="estoque" data-permission="estoque">Estoque</button>
       <button class="tab" data-view="caixa" data-permission="caixa">Caixa</button>
@@ -158,6 +160,52 @@
         </div>
 
         <div id="vouchersList" class="vouchers-list"></div>
+      </section>
+
+      <section id="agentes" class="view">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">PARCEIROS / AGÊNCIA</span>
+            <h2>Agentes</h2>
+            <p class="muted">Cadastre agentes e defina o percentual de comissão de cada um.</p>
+          </div>
+          <button class="primary" onclick="openAgentModal()">+ Novo agente</button>
+        </div>
+
+        <div class="voucher-search-panel">
+          <input id="agentSearch" placeholder="Pesquisar agente..." oninput="searchAgents()">
+        </div>
+
+        <div id="agentsList" class="agents-list"></div>
+      </section>
+
+      <section id="comissoes" class="view">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">REPASSES</span>
+            <h2>Comissões</h2>
+            <p class="muted">Acompanhe quanto deve ser repassado a cada agente por voucher.</p>
+          </div>
+        </div>
+
+        <div id="commissionsSummary" class="commissions-summary"></div>
+
+        <div class="commission-filters">
+          <label>Agente
+            <select id="commissionAgentFilter" onchange="filterCommissions()">
+              <option value="ALL">Todos</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="commissionStatusFilter" onchange="filterCommissions()">
+              <option value="PENDENTE">Pendentes</option>
+              <option value="PAGO">Pagas</option>
+              <option value="ALL">Todas</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="commissionsList" class="commissions-list"></div>
       </section>
 
       <section id="produtos" class="view">
@@ -268,8 +316,8 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=roles20"></script>
+  <script src="./auth.js?v=agents25"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=vouchers24"></script>
+  <script src="./app.js?v=agents25"></script>
 </body>
 </html>
