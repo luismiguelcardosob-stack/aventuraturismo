@@ -330,40 +330,84 @@
   window.loadUsers=async function(){
     const box=$("usersAccessList");
     if(!box || window.currentProfile?.role!=="MASTER") return;
-    box.innerHTML="<small>Carregando...</small>";
 
-    const {data,error}=await window.sb.from("user_profiles")
-      .select("id,full_name,email,role,active,permissions,created_at")
-      .order("created_at",{ascending:true});
+    box.innerHTML='<div class="loading-users">Carregando usuários...</div>';
 
-    if(error){box.innerHTML=`<small>Erro: ${esc(error.message)}</small>`;return;}
+    try{
+      const {data,error}=await window.sb
+        .from("user_profiles")
+        .select("id,full_name,email,role,active,created_at")
+        .order("created_at",{ascending:true});
 
-    const roleLabels={MASTER:"MASTER",GESTOR:"GESTOR",GERENTE:"GERENTE",GARCOM:"GARÇOM",USER:"GARÇOM"};
+      if(error) throw error;
 
-    box.innerHTML=data.map(u=>{
-      const master=u.role==="MASTER";
-      const normalizedRole=u.role==="USER"?"GARCOM":u.role;
-      return `<article class="user-access-card">
-        <div class="user-access-head">
-          <div><strong>${esc(u.full_name||"Usuário")}</strong><small>${esc(u.email||"")}</small></div>
-          <div class="user-access-actions">
-            <span class="pill">${roleLabels[normalizedRole]||normalizedRole}</span>
-            ${master?"":`<select class="role-select" onchange="setUserRole('${u.id}',this.value)">
-              <option value="GARCOM" ${normalizedRole==="GARCOM"?"selected":""}>Garçom</option>
-              <option value="GERENTE" ${normalizedRole==="GERENTE"?"selected":""}>Gerente</option>
-              <option value="GESTOR" ${normalizedRole==="GESTOR"?"selected":""}>Gestor</option>
-            </select>
-            <label class="active-toggle"><input type="checkbox" ${u.active?"checked":""} onchange="setUserActive('${u.id}',this.checked)"><span>${u.active?"Ativo":"Bloqueado"}</span></label>`}
+      if(!data || !data.length){
+        box.innerHTML='<div class="loading-users">Nenhum usuário encontrado.</div>';
+        return;
+      }
+
+      const roleLabels={
+        MASTER:"MASTER",
+        GESTOR:"GESTOR",
+        GERENTE:"GERENTE",
+        GARCOM:"GARÇOM",
+        USER:"GARÇOM"
+      };
+
+      box.innerHTML=data.map(u=>{
+        const master=u.role==="MASTER";
+        const normalizedRole=u.role==="USER"?"GARCOM":u.role;
+
+        return `<article class="user-access-card">
+          <div class="user-access-head">
+            <div>
+              <strong>${esc(u.full_name||"Usuário")}</strong>
+              <small>${esc(u.email||"")}</small>
+            </div>
+
+            <div class="user-access-actions">
+              <span class="pill">${roleLabels[normalizedRole]||normalizedRole}</span>
+
+              ${master ? "" : `
+                <select class="role-select" onchange="setUserRole('${u.id}',this.value)">
+                  <option value="GARCOM" ${normalizedRole==="GARCOM"?"selected":""}>Garçom</option>
+                  <option value="GERENTE" ${normalizedRole==="GERENTE"?"selected":""}>Gerente</option>
+                  <option value="GESTOR" ${normalizedRole==="GESTOR"?"selected":""}>Gestor</option>
+                </select>
+
+                <label class="active-toggle">
+                  <input type="checkbox"
+                    ${u.active?"checked":""}
+                    onchange="setUserActive('${u.id}',this.checked)">
+                  <span>${u.active?"Ativo":"Bloqueado"}</span>
+                </label>
+              `}
+            </div>
           </div>
-        </div>
-        <div class="profile-access-summary">${
-          normalizedRole==="GARCOM"?"Comandas e pedidos. Pode abrir e fechar comanda.":
-          normalizedRole==="GERENTE"?"Comandas, pedidos, Caixa e Estoque.":
-          normalizedRole==="GESTOR"?"Acesso operacional completo.":
-          "Administrador MASTER do sistema."
-        }</div>
-      </article>`;
-    }).join("");
+
+          <div class="profile-access-summary">
+            ${
+              normalizedRole==="GARCOM"
+                ? "Comandas e pedidos. Pode abrir e fechar comandas."
+                : normalizedRole==="GERENTE"
+                  ? "Comandas, pedidos, Caixa e Estoque."
+                  : normalizedRole==="GESTOR"
+                    ? "Acesso operacional completo."
+                    : "Administrador MASTER do sistema."
+            }
+          </div>
+        </article>`;
+      }).join("");
+
+    }catch(err){
+      console.error("Erro ao carregar usuários:",err);
+      box.innerHTML=`
+        <div class="users-load-error">
+          <strong>Não foi possível carregar os usuários.</strong>
+          <span>${esc(err?.message||"Erro desconhecido")}</span>
+          <button class="ghost" onclick="loadUsers()">Tentar novamente</button>
+        </div>`;
+    }
   };
 
   window.setUserPermission=async function(uid,key,value){
