@@ -85,6 +85,25 @@
     const {data:{session}}=await window.sb.auth.getSession();
     if(session?.user) await enterApp(session.user); else showLogin();
 
+    const passwordInput=$("loginPassword");
+    const capsWarning=$("capsLockWarning");
+
+    const updateCapsLock=(event)=>{
+      if(!capsWarning) return;
+      const capsOn=event.getModifierState && event.getModifierState("CapsLock");
+      capsWarning.classList.toggle("hidden",!capsOn);
+    };
+
+    passwordInput?.addEventListener("keydown",updateCapsLock);
+    passwordInput?.addEventListener("keyup",updateCapsLock);
+    passwordInput?.addEventListener("focus",()=>{
+      // O estado só pode ser confirmado quando uma tecla é pressionada.
+      capsWarning?.classList.add("hidden");
+    });
+    passwordInput?.addEventListener("blur",()=>{
+      capsWarning?.classList.add("hidden");
+    });
+
     $("loginForm")?.addEventListener("submit",async e=>{
       e.preventDefault();
       const btn=$("loginButton");

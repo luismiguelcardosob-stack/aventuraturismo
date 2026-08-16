@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=profiles14" />
+  <link rel="stylesheet" href="./styles.css?v=caps15" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -29,6 +29,7 @@
         </label>
         <label>Senha
           <input id="loginPassword" type="password" autocomplete="current-password" required>
+          <div id="capsLockWarning" class="caps-lock-warning hidden">⚠ CAPS LOCK ativado</div>
         </label>
         <div id="loginError" class="login-error hidden"></div>
         <button id="loginButton" class="primary login-submit" type="submit">Entrar</button>
@@ -177,7 +178,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=profiles14"></script>
+  <script src="./auth.js?v=caps15"></script>
   <script src="./app.js?v=profiles14"></script>
 </body>
 </html>
