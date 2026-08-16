@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Aventura Turismo | Capitão Gancho | v.90M</title>
-  <link rel="stylesheet" href="./styles.css?v=90M" />
+  <title>Aventura Turismo | Capitão Gancho | v.90A</title>
+  <link rel="stylesheet" href="./styles.css?v=pirata-01" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -16,7 +16,7 @@
     body.recovering #appShell{display:none!important}
   </style>
 </head>
-<body>
+<body class="theme-pirata">
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
       <div class="login-brand">
@@ -85,12 +85,11 @@
 <div id="appShell" class="app-shell">
     <header class="topbar">
       <div>
-        <div class="brand-title-row"><h1>Aventura Turismo</h1><span id="systemVersion" class="system-version">v.90M</span><button id="btnCheckUpdate" class="version-update-btn master-only" type="button" onclick="openUpdateCenter()">Verificar atualização</button></div>
+        <div class="brand-title-row"><h1>Aventura Turismo</h1><span id="systemVersion" class="system-version">v.90A</span></div>
         <p>Capitão Gancho • Comandas & Gestão</p>
       </div>
       <div class="top-actions">
-        <span id="connectionStatus" class="badge">Servidor</span>
-        <span id="remoteSyncStatus" class="badge cloud-badge">Nuvem • verificando</span>
+        <span id="connectionStatus" class="badge">Supabase</span>
         <span id="loggedUser" class="user-chip"></span>
         <button id="btnOpenModal" class="primary" data-permission="comandas">+ Nova comanda</button>
         <button id="btnLogout" class="ghost logout-btn">Sair</button>
@@ -179,9 +178,9 @@
           <div>
             <span class="eyebrow">PARCEIROS / AGÊNCIA</span>
             <h2>Agentes</h2>
-            <p class="muted">Lista de agentes cadastrados. Edite comissão, dados bancários, PIX e parceiro/pousada.</p>
+            <p class="muted">Cadastre agentes e defina o percentual de comissão de cada um.</p>
           </div>
-          <button class="primary master-only" onclick="openAgentModal()">+ Novo agente</button>
+          <button class="primary" onclick="openAgentModal()">+ Novo agente</button>
         </div>
 
         <div class="voucher-search-panel">
@@ -196,9 +195,8 @@
           <div>
             <span class="eyebrow">REPASSES</span>
             <h2>Comissões</h2>
-            <p class="muted">Integrado aos vouchers: calcula automaticamente o valor a receber conforme a comissão cadastrada do agente.</p>
+            <p class="muted">Acompanhe quanto deve ser repassado a cada agente por voucher.</p>
           </div>
-          <button class="primary" onclick="downloadCommissionReport()">Baixar relatório de comissões</button>
         </div>
 
         <div id="commissionsSummary" class="commissions-summary"></div>
@@ -243,15 +241,8 @@
       </section>
 
       <section id="relatorios" class="view">
-        <div class="section-head"><div><span class="eyebrow">RESUMO</span><h2>Relatórios</h2></div></div>
-
-        <div class="report-subtabs">
-          <button class="report-subtab active" data-report-section="operacional" onclick="showReportSection('operacional')">Operacional</button>
-          <button class="report-subtab" data-report-section="comissoes" onclick="showReportSection('comissoes')">Comissões</button>
-        </div>
-
+        <div class="section-head"><div><span class="eyebrow">RESUMO</span><h2>Relatório do dia selecionado</h2></div></div>
         <section class="panel" id="dailyReport"></section>
-        <section class="panel hidden" id="commissionReport"></section>
       </section>
 
       <section id="configuracoes" class="view">
@@ -336,8 +327,8 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=90M"></script>
+  <script src="./auth.js?v=accessfix26"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-  <script src="./app.js?v=90M"></script>
+  <script src="./app.js?v=v90A"></script>
 </body>
 </html>
