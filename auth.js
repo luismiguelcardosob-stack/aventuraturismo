@@ -364,6 +364,7 @@
         }</div>
       </article>`;
     }).join("");
+  };
 
   window.setUserPermission=async function(uid,key,value){
     if(window.currentProfile?.role!=="MASTER") return;
