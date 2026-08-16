@@ -482,3 +482,41 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .order-menu-grid{grid-template-columns:1fr 1fr}
   .order-product-btn{min-height:82px}
 }
+
+
+/* Resumo pós-envio fixo */
+.order-review-steps{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:7px;
+}
+.order-review-steps span{
+  padding:8px 9px;
+  border-radius:9px;
+  border:1px solid var(--line);
+  background:#fff;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+  text-align:center;
+}
+.order-review-steps .done{
+  background:#edf9f3;
+  border-color:#ccebdc;
+  color:#176444;
+}
+.order-review-steps .active{
+  background:#f1eafd;
+  border-color:#d5c1f3;
+  color:var(--brand);
+}
+.sent-order-area{
+  animation:reviewAppear .18s ease-out;
+}
+@keyframes reviewAppear{
+  from{opacity:0;transform:translateY(4px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media(max-width:600px){
+  .order-review-steps{grid-template-columns:1fr}
+}

@@ -50,6 +50,8 @@ const defaults={
 let state=JSON.parse(localStorage.getItem('aventura_pdv')||'null')||defaults;
 let currentTabId=null;
 let cart=[];
+let lastSentOrderId=null;
+let orderReviewLocked=false;
 
 let cloudReady=false;
 let savingCloud=false;
@@ -123,7 +125,9 @@ function startRealtimeSync(){
         // Se uma comanda estiver aberta, atualiza a tela dela também.
         if(currentTabId && !document.getElementById('modal')?.classList.contains('hidden')){
           const exists=state.tabs.some(t=>t.id===currentTabId);
-          if(exists) renderTabModal();
+          // Depois de "Enviar pedido", o resumo BAR/COZINHA fica travado
+          // até o operador decidir imprimir ou iniciar um novo pedido.
+          if(exists && !orderReviewLocked) renderTabModal();
         }
       })
     .subscribe();
@@ -143,7 +147,11 @@ window.showView=function(name){
 
 function wireTabs(){document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showView(b.dataset.view));}
 function openModal(title,html){document.getElementById('modalTitle').textContent=title;document.getElementById('modalContent').innerHTML=`<div class="modal-body">${html}</div>`;document.getElementById('modal').classList.remove('hidden');}
-window.closeModal=()=>document.getElementById('modal').classList.add('hidden');
+window.closeModal=()=>{
+  document.getElementById('modal').classList.add('hidden');
+  orderReviewLocked=false;
+  lastSentOrderId=null;
+};
 
 window.openNewTabModal=function(){
   if(window.hasPermission&&!window.hasPermission('comandas'))return alert('Sem permissão.');
@@ -270,7 +278,11 @@ window.createTab=function(){
 
 window.openTab=function(tabId){
   if(window.hasPermission&&!window.hasPermission('comandas'))return alert('Sem permissão.');
-  currentTabId=tabId;cart=[];renderTabModal();
+  currentTabId=tabId;
+  cart=[];
+  lastSentOrderId=null;
+  orderReviewLocked=false;
+  renderTabModal();
 };
 
 function renderTabModal(){
@@ -345,6 +357,13 @@ function renderTabModal(){
   `);
 
   updateStableCart();
+
+  if(orderReviewLocked && lastSentOrderId){
+    const reviewedOrder=state.orders.find(o=>o.id===lastSentOrderId);
+    if(reviewedOrder){
+      showSentOrderInline(reviewedOrder);
+    }
+  }
 }
 
 
@@ -434,6 +453,10 @@ window.sendOrderStable=async function(){
     if(p) p.stock-=line.qty;
   });
 
+  // Trava a tela no resumo antes de sincronizar.
+  lastSentOrderId=order.id;
+  orderReviewLocked=true;
+
   save();
   cart=[];
   updateStableCart();
@@ -452,8 +475,14 @@ function showSentOrderInline(order){
   area.classList.remove('hidden');
   area.innerHTML=`
     <div class="sent-order-success">
-      <strong>Pedido enviado.</strong>
-      <span>Confira os setores antes de imprimir.</span>
+      <strong>Pedido enviado e salvo.</strong>
+      <span>Agora confira o resumo abaixo. Esta tela ficará aberta até você imprimir ou clicar em “Novo pedido nesta comanda”.</span>
+    </div>
+
+    <div class="order-review-steps">
+      <span class="done">1. Pedido enviado ✓</span>
+      <span class="active">2. Conferir BAR / COZINHA</span>
+      <span>3. Imprimir</span>
     </div>
 
     <div class="production-tabs inline-production-tabs">
@@ -500,11 +529,15 @@ window.switchInlinePrintTab=function(sector){
 };
 
 window.startAnotherOrder=function(){
+  orderReviewLocked=false;
+  lastSentOrderId=null;
+
   const area=document.getElementById('sentOrderArea');
   if(area){
     area.classList.add('hidden');
     area.innerHTML='';
   }
+
   const first=document.querySelector('.order-menu-scroll');
   first?.scrollTo({top:0,behavior:'smooth'});
 };
@@ -559,15 +592,23 @@ window.switchPrintTab=function(sector){
 };
 
 window.printSector=function(sector){
+  orderReviewLocked=true;
   document.body.dataset.printSector=sector;
   window.print();
-  setTimeout(()=>{delete document.body.dataset.printSector;},300);
+  setTimeout(()=>{
+    delete document.body.dataset.printSector;
+    orderReviewLocked=true;
+  },300);
 };
 
 window.printBothSectors=function(){
+  orderReviewLocked=true;
   document.body.dataset.printSector='AMBOS';
   window.print();
-  setTimeout(()=>{delete document.body.dataset.printSector;},300);
+  setTimeout(()=>{
+    delete document.body.dataset.printSector;
+    orderReviewLocked=true;
+  },300);
 };
 
 function showPrintPreview(order){
