@@ -53,6 +53,8 @@ let cart=[];
 let lastSentOrderId=null;
 let orderReviewLocked=false;
 
+function canManageComanda(){return ['MASTER','GESTOR'].includes(window.currentProfile?.role);}
+
 let cloudReady=false;
 let savingCloud=false;
 let pendingCloudSave=false;
@@ -291,6 +293,7 @@ function renderTabModal(){
 
   const existing=state.orders.filter(o=>o.tabId===currentTabId&&o.status!=='CANCELADO');
   const historical=existing.reduce((s,o)=>s+Number(o.total||0),0);
+  const manager=canManageComanda();
 
   const categoryOrder=['ALMOÇO','PORÇÕES','BEBIDAS','DRINKS','EXTRAS'];
   const productButtons=categoryOrder.map(category=>{
@@ -309,6 +312,19 @@ function renderTabModal(){
     </section>`;
   }).join('');
 
+  const sentSummary=existing
+    .filter(o=>!o.automatic)
+    .slice()
+    .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt))
+    .map((o,i)=>`
+      <div class="sent-history-row">
+        <div>
+          <strong>Pedido ${i+1}</strong>
+          <small>${new Date(o.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} • ${o.items.map(x=>`${x.qty}x ${x.name}`).join(', ')}</small>
+        </div>
+        ${manager?`<strong>${money(o.total)}</strong>`:''}
+      </div>`).join('');
+
   openModal(`Comanda ${tab.number}`,`
     <div class="comanda-order-layout">
       <div class="comanda-order-main">
@@ -316,7 +332,7 @@ function renderTabModal(){
           <div>
             <span class="eyebrow">COMANDA ${tab.number}</span>
             <h3>${tab.customer||'Sem responsável'}</h3>
-            <p>${tab.people||1} pessoa(s) • Consumo lançado: ${money(historical)}</p>
+            <p>${tab.people||1} pessoa(s)${manager?` • Total acumulado: ${money(historical)}`:''}</p>
           </div>
           <span class="pill">${tab.status}</span>
         </div>
@@ -347,10 +363,21 @@ function renderTabModal(){
 
         <div id="sentOrderArea" class="sent-order-area hidden"></div>
 
+        <div class="sent-history-box">
+          <div class="sent-history-head">
+            <strong>Pedidos já enviados</strong>
+            <small>Continuam registrados nesta comanda.</small>
+          </div>
+          <div class="sent-history-list">
+            ${sentSummary || '<small>Nenhum pedido enviado ainda.</small>'}
+          </div>
+        </div>
+
         <div class="comanda-secondary-actions">
+          ${manager?'<button class="ghost" onclick="openAllOrdersManager()">Visualizar todos os pedidos</button>':''}
           ${window.hasPermission&&window.hasPermission('caixa')
             ? '<button class="ghost" onclick="openCheckout()">Fechar comanda</button>'
-            : '<span class="checkout-warning">Somente o Caixa pode fechar a comanda.</span>'}
+            : ''}
         </div>
       </aside>
     </div>
@@ -366,6 +393,133 @@ function renderTabModal(){
   }
 }
 
+
+
+window.openAllOrdersManager=function(){
+  if(!canManageComanda()) return alert('Somente MASTER ou GESTOR podem gerenciar os pedidos da comanda.');
+
+  const tab=state.tabs.find(t=>t.id===currentTabId);
+  if(!tab) return;
+
+  const orders=state.orders
+    .filter(o=>o.tabId===currentTabId&&o.status!=='CANCELADO')
+    .slice()
+    .sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+
+  const content=orders.map((order,orderIndex)=>`
+    <section class="manager-order-card">
+      <div class="manager-order-head">
+        <div>
+          <strong>${order.automatic?'Lançamentos automáticos':`Pedido ${orderIndex+1}`}</strong>
+          <small>${new Date(order.createdAt).toLocaleString('pt-BR')} • ${order.createdByName||'Sistema'}</small>
+        </div>
+        <strong>${money(order.total)}</strong>
+      </div>
+
+      <div class="manager-order-items">
+        ${order.items.map((item,itemIndex)=>`
+          <div class="manager-order-item">
+            <div>
+              <strong>${item.name}</strong>
+              <small>${money(item.price)} cada</small>
+            </div>
+
+            ${order.automatic?`
+              <span>${item.qty}x</span>
+            `:`
+              <div class="manager-item-actions">
+                <button onclick="managerChangeItemQty('${order.id}',${itemIndex},-1)">−</button>
+                <b>${item.qty}</b>
+                <button onclick="managerChangeItemQty('${order.id}',${itemIndex},1)">+</button>
+                <button class="danger" onclick="managerCancelItem('${order.id}',${itemIndex})">Cancelar item</button>
+              </div>
+            `}
+          </div>`).join('')}
+      </div>
+    </section>
+  `).join('');
+
+  openModal(`Todos os pedidos • Comanda ${tab.number}`,`
+    <div class="manager-orders-view">
+      <div class="manager-warning">
+        <strong>Área de gestão</strong>
+        <span>Somente MASTER e GESTOR podem alterar ou cancelar itens já enviados.</span>
+      </div>
+      ${content || '<small>Nenhum pedido registrado.</small>'}
+      <div class="checkout">
+        <button class="ghost" onclick="renderTabModal()">Voltar para a comanda</button>
+      </div>
+    </div>
+  `);
+};
+
+window.managerChangeItemQty=function(orderId,itemIndex,delta){
+  if(!canManageComanda()) return alert('Sem permissão.');
+
+  const order=state.orders.find(o=>o.id===orderId);
+  if(!order || order.automatic) return;
+
+  const item=order.items[itemIndex];
+  if(!item) return;
+
+  const newQty=Number(item.qty||0)+delta;
+  if(newQty<=0){
+    return managerCancelItem(orderId,itemIndex);
+  }
+
+  // Ajusta estoque de forma inversa à alteração.
+  const product=state.products.find(p=>p.id===item.productId);
+  if(delta>0 && product && product.stock<delta){
+    return alert(`Estoque insuficiente: ${product.name}`);
+  }
+  if(product) product.stock-=delta;
+
+  item.qty=newQty;
+  order.total=order.items.reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0);
+  order.updatedAt=new Date().toISOString();
+  order.updatedBy=window.currentProfile?.id||null;
+  order.updatedByName=window.currentProfile?.full_name||'Gestor';
+
+  save();
+  openAllOrdersManager();
+};
+
+window.managerCancelItem=function(orderId,itemIndex){
+  if(!canManageComanda()) return alert('Sem permissão.');
+
+  const order=state.orders.find(o=>o.id===orderId);
+  if(!order || order.automatic) return;
+
+  const item=order.items[itemIndex];
+  if(!item) return;
+
+  if(!confirm(`Cancelar ${item.qty}x ${item.name}?`)) return;
+
+  const product=state.products.find(p=>p.id===item.productId);
+  if(product) product.stock+=Number(item.qty||0);
+
+  if(!order.cancelledItems) order.cancelledItems=[];
+  order.cancelledItems.push({
+    ...item,
+    cancelledAt:new Date().toISOString(),
+    cancelledBy:window.currentProfile?.id||null,
+    cancelledByName:window.currentProfile?.full_name||'Gestor'
+  });
+
+  order.items.splice(itemIndex,1);
+  order.total=order.items.reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0);
+  order.updatedAt=new Date().toISOString();
+
+  if(!order.items.length){
+    order.status='CANCELADO';
+    order.cancelledAt=new Date().toISOString();
+    order.cancelledBy=window.currentProfile?.id||null;
+    order.cancelledByName=window.currentProfile?.full_name||'Gestor';
+  }
+
+  save();
+  openAllOrdersManager();
+};
 
 window.addProductStable=function(pid){
   const p=state.products.find(x=>x.id===pid);
@@ -531,15 +685,15 @@ window.switchInlinePrintTab=function(sector){
 window.startAnotherOrder=function(){
   orderReviewLocked=false;
   lastSentOrderId=null;
+  cart=[];
 
-  const area=document.getElementById('sentOrderArea');
-  if(area){
-    area.classList.add('hidden');
-    area.innerHTML='';
-  }
+  // Reabre a mesma comanda; pedidos anteriores permanecem no histórico.
+  renderTabModal();
 
-  const first=document.querySelector('.order-menu-scroll');
-  first?.scrollTo({top:0,behavior:'smooth'});
+  setTimeout(()=>{
+    const first=document.querySelector('.order-menu-scroll');
+    first?.scrollTo({top:0,behavior:'smooth'});
+  },50);
 };
 
 window.addProduct=function(pid){const p=state.products.find(x=>x.id===pid);if(!p)return;const line=cart.find(x=>x.productId===pid);if(line)line.qty++;else cart.push({productId:p.id,name:p.name,sector:p.sector,price:p.price,qty:1});renderTabModal();};

@@ -120,12 +120,17 @@
 
     box.innerHTML=data.map(u=>{
       const master=u.role==="MASTER";
+      const gestor=u.role==="GESTOR";
       const perms=master?ALL:(u.permissions||{});
       return `<article class="user-access-card">
         <div class="user-access-head">
           <div><strong>${esc(u.full_name||"Usuário")}</strong><small>${esc(u.email||"")}</small></div>
           <div class="user-access-actions">
-            <span class="pill">${master?"MASTER":"USUÁRIO"}</span>
+            <span class="pill">${master?"MASTER":gestor?"GESTOR":"USUÁRIO"}</span>
+            ${master?"":`<select class="role-select" onchange="setUserRole('${u.id}',this.value)">
+              <option value="USER" ${u.role==="USER"?"selected":""}>Usuário</option>
+              <option value="GESTOR" ${u.role==="GESTOR"?"selected":""}>Gestor</option>
+            </select>`}
             ${master?"":`<label class="active-toggle"><input type="checkbox" ${u.active?"checked":""} onchange="setUserActive('${u.id}',this.checked)"><span>${u.active?"Ativo":"Bloqueado"}</span></label>`}
           </div>
         </div>
@@ -217,6 +222,22 @@
     }finally{
       if(btn){btn.disabled=false;btn.textContent="Criar usuário";}
     }
+  };
+
+
+  window.setUserRole=async function(uid,role){
+    if(window.currentProfile?.role!=="MASTER") return;
+    if(!["USER","GESTOR"].includes(role)) return;
+
+    const {data}=await window.sb.from("user_profiles").select("role").eq("id",uid).single();
+    if(data?.role==="MASTER") return;
+
+    const {error}=await window.sb.from("user_profiles")
+      .update({role,updated_at:new Date().toISOString()})
+      .eq("id",uid);
+
+    if(error) alert("Não foi possível alterar o perfil.");
+    await loadUsers();
   };
 
   window.addEventListener("DOMContentLoaded",init);

@@ -520,3 +520,85 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
 @media(max-width:600px){
   .order-review-steps{grid-template-columns:1fr}
 }
+
+
+/* Histórico e gestão de comandas */
+.sent-history-box{
+  display:grid;
+  gap:8px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+.sent-history-head{display:grid;gap:2px}
+.sent-history-head small{color:var(--muted)}
+.sent-history-list{display:grid;gap:7px;max-height:220px;overflow:auto}
+.sent-history-row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+}
+.sent-history-row>div{display:grid;gap:3px;min-width:0}
+.sent-history-row small{color:var(--muted);font-size:10px;line-height:1.3}
+
+.manager-orders-view{display:grid;gap:14px}
+.manager-warning{
+  display:grid;
+  gap:4px;
+  padding:13px 14px;
+  border-radius:12px;
+  background:#fff5e9;
+  color:#7d5317;
+}
+.manager-warning span{font-size:12px}
+.manager-order-card{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:14px;
+  background:#fff;
+}
+.manager-order-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--line);
+}
+.manager-order-head>div{display:grid;gap:3px}
+.manager-order-head small{color:var(--muted)}
+.manager-order-items{display:grid;gap:8px;margin-top:10px}
+.manager-order-item{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  padding:10px;
+  background:#faf9fc;
+  border-radius:10px;
+}
+.manager-order-item>div:first-child{display:grid;gap:3px}
+.manager-order-item small{color:var(--muted)}
+.manager-item-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.manager-item-actions button:not(.danger){
+  width:30px;
+  height:30px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  font-weight:900;
+}
+.role-select{
+  padding:7px 9px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:#fff;
+  font-size:12px;
+  font-weight:700;
+}
+@media(max-width:700px){
+  .manager-order-item{align-items:flex-start;flex-direction:column}
+}
