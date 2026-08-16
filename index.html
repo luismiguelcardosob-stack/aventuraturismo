@@ -4,12 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=caps15" />
+  <link rel="stylesheet" href="./styles.css?v=login16" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
+    #recoveryScreen{display:none!important}
     body.authenticated #appShell{display:block!important}
     body.authenticated #loginScreen{display:none!important}
+    body.recovering #loginScreen{display:none!important}
+    body.recovering #recoveryScreen{display:grid!important}
+    body.recovering #appShell{display:none!important}
   </style>
 </head>
 <body>
@@ -28,17 +32,57 @@
           <input id="loginEmail" type="email" autocomplete="username" required>
         </label>
         <label>Senha
-          <input id="loginPassword" type="password" autocomplete="current-password" required>
+          <div class="password-field">
+            <input id="loginPassword" type="password" autocomplete="current-password" required>
+            <button id="togglePassword" type="button" class="password-toggle" aria-label="Mostrar senha">Mostrar</button>
+          </div>
           <div id="capsLockWarning" class="caps-lock-warning hidden">⚠ CAPS LOCK ativado</div>
         </label>
+
+        <button id="forgotPasswordButton" class="forgot-password-btn" type="button">Esqueci minha senha</button>
+
         <div id="loginError" class="login-error hidden"></div>
+        <div id="loginSuccess" class="login-success hidden"></div>
+
         <button id="loginButton" class="primary login-submit" type="submit">Entrar</button>
       </form>
       <small class="login-foot">Acesso restrito aos usuários autorizados.</small>
     </div>
   </div>
 
-  <div id="appShell" class="app-shell">
+  <div id="recoveryScreen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo">AT</div>
+        <div>
+          <span class="eyebrow">AVENTURA TURISMO</span>
+          <h1>Redefinir senha</h1>
+          <p>Crie uma nova senha para seu acesso.</p>
+        </div>
+      </div>
+
+      <form id="recoveryForm" class="login-form">
+        <label>Nova senha
+          <div class="password-field">
+            <input id="newPassword" type="password" minlength="6" autocomplete="new-password" required>
+            <button id="toggleNewPassword" type="button" class="password-toggle">Mostrar</button>
+          </div>
+        </label>
+
+        <label>Confirmar nova senha
+          <input id="confirmNewPassword" type="password" minlength="6" autocomplete="new-password" required>
+        </label>
+
+        <div id="recoveryError" class="login-error hidden"></div>
+        <div id="recoverySuccess" class="login-success hidden"></div>
+
+        <button id="recoveryButton" class="primary login-submit" type="submit">Salvar nova senha</button>
+        <button id="backToLoginButton" class="ghost login-back-btn" type="button">Voltar para o login</button>
+      </form>
+    </div>
+  </div>
+
+<div id="appShell" class="app-shell">
     <header class="topbar">
       <div>
         <h1>Aventura Turismo</h1>
@@ -178,7 +222,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=caps15"></script>
+  <script src="./auth.js?v=login16"></script>
   <script src="./app.js?v=profiles14"></script>
 </body>
 </html>

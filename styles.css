@@ -626,3 +626,55 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   font-size:12px;
   font-weight:800;
 }
+
+
+/* Login estável + recuperação de senha */
+.password-field{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.password-field input{
+  flex:1;
+  min-width:0;
+}
+.password-toggle{
+  border:1px solid var(--line);
+  background:#fff;
+  color:#5e4b77;
+  padding:10px 11px;
+  border-radius:10px;
+  font-size:12px;
+  font-weight:800;
+}
+.forgot-password-btn{
+  border:0;
+  background:transparent;
+  padding:2px 0;
+  margin-top:-5px;
+  color:var(--brand);
+  font-size:13px;
+  font-weight:800;
+  text-align:right;
+  justify-self:end;
+}
+.forgot-password-btn:hover{text-decoration:underline}
+.forgot-password-btn:disabled{opacity:.6;cursor:wait}
+.login-success{
+  padding:11px 13px;
+  background:#edf9f3;
+  color:#176444;
+  border:1px solid #ccebdc;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:700;
+  line-height:1.4;
+}
+.login-back-btn{
+  width:100%;
+  margin-top:2px;
+}
+.login-submit:disabled{
+  opacity:.7;
+  cursor:wait;
+}

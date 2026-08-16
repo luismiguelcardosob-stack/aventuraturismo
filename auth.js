@@ -12,8 +12,9 @@
   const $ = id => document.getElementById(id);
 
   function showLogin(msg=""){
-    document.body.classList.remove("authenticated");
+    document.body.classList.remove("authenticated","recovering");
     $("loginScreen")?.classList.remove("hidden");
+    $("recoveryScreen")?.classList.add("hidden");
     $("appShell")?.classList.add("hidden");
     if($("loginError")){
       $("loginError").textContent=msg;
@@ -81,9 +82,71 @@
     }
   }
 
+
+  function setLoginError(message=""){
+    const el=$("loginError");
+    if(!el) return;
+    el.textContent=message;
+    el.classList.toggle("hidden",!message);
+  }
+
+  function setLoginSuccess(message=""){
+    const el=$("loginSuccess");
+    if(!el) return;
+    el.textContent=message;
+    el.classList.toggle("hidden",!message);
+  }
+
+  function showRecovery(){
+    document.body.classList.remove("authenticated");
+    document.body.classList.add("recovering");
+    $("loginScreen")?.classList.add("hidden");
+    $("recoveryScreen")?.classList.remove("hidden");
+    $("appShell")?.classList.add("hidden");
+  }
+
+  function togglePasswordField(inputId,buttonId){
+    const input=$(inputId);
+    const button=$(buttonId);
+    if(!input||!button) return;
+    const showing=input.type==="text";
+    input.type=showing?"password":"text";
+    button.textContent=showing?"Mostrar":"Ocultar";
+    button.setAttribute("aria-label",showing?"Mostrar senha":"Ocultar senha");
+  }
+
   async function init(){
+    // Detecta retorno do link de recuperação de senha.
+    const hash=window.location.hash||"";
+    const search=window.location.search||"";
+    const recoveryInUrl=hash.includes("type=recovery") || search.includes("type=recovery");
+
     const {data:{session}}=await window.sb.auth.getSession();
-    if(session?.user) await enterApp(session.user); else showLogin();
+
+    if(recoveryInUrl){
+      showRecovery();
+    }else if(session?.user){
+      await enterApp(session.user);
+    }else{
+      showLogin();
+    }
+
+    // Supabase dispara PASSWORD_RECOVERY quando a pessoa abre o link recebido por e-mail.
+    window.sb.auth.onAuthStateChange(async(event,sessionNow)=>{
+      if(event==="PASSWORD_RECOVERY"){
+        showRecovery();
+        return;
+      }
+
+      if(event==="SIGNED_OUT"){
+        window.currentProfile=null;
+        showLogin();
+        return;
+      }
+    });
+
+    $("togglePassword")?.addEventListener("click",()=>togglePasswordField("loginPassword","togglePassword"));
+    $("toggleNewPassword")?.addEventListener("click",()=>togglePasswordField("newPassword","toggleNewPassword"));
 
     const passwordInput=$("loginPassword");
     const capsWarning=$("capsLockWarning");
@@ -96,35 +159,172 @@
 
     passwordInput?.addEventListener("keydown",updateCapsLock);
     passwordInput?.addEventListener("keyup",updateCapsLock);
-    passwordInput?.addEventListener("focus",()=>{
-      // O estado só pode ser confirmado quando uma tecla é pressionada.
-      capsWarning?.classList.add("hidden");
-    });
-    passwordInput?.addEventListener("blur",()=>{
-      capsWarning?.classList.add("hidden");
-    });
+    passwordInput?.addEventListener("blur",()=>capsWarning?.classList.add("hidden"));
 
     $("loginForm")?.addEventListener("submit",async e=>{
       e.preventDefault();
+
       const btn=$("loginButton");
-      btn.disabled=true; btn.textContent="Entrando...";
-      const {data,error}=await window.sb.auth.signInWithPassword({
-        email:$("loginEmail").value.trim(),
-        password:$("loginPassword").value
-      });
-      btn.disabled=false; btn.textContent="Entrar";
-      if(error){showLogin("E-mail ou senha inválidos.");return;}
-      await enterApp(data.user);
+      const email=$("loginEmail")?.value.trim().toLowerCase();
+      const password=$("loginPassword")?.value||"";
+
+      setLoginError("");
+      setLoginSuccess("");
+
+      if(!email){
+        setLoginError("Informe seu e-mail.");
+        $("loginEmail")?.focus();
+        return;
+      }
+
+      if(!password){
+        setLoginError("Informe sua senha.");
+        $("loginPassword")?.focus();
+        return;
+      }
+
+      btn.disabled=true;
+      btn.textContent="Entrando...";
+
+      try{
+        const {data,error}=await window.sb.auth.signInWithPassword({email,password});
+
+        if(error){
+          let message="Não foi possível entrar.";
+          const lower=(error.message||"").toLowerCase();
+
+          if(lower.includes("invalid login credentials")){
+            message="E-mail ou senha incorretos.";
+          }else if(lower.includes("email not confirmed")){
+            message="Seu e-mail ainda não foi confirmado.";
+          }else if(lower.includes("too many requests")){
+            message="Muitas tentativas. Aguarde um momento e tente novamente.";
+          }
+
+          setLoginError(message);
+          return;
+        }
+
+        if(!data?.user){
+          setLoginError("Login não concluído. Tente novamente.");
+          return;
+        }
+
+        setLoginSuccess("Login confirmado. Abrindo o sistema...");
+        await enterApp(data.user);
+
+      }catch(err){
+        console.error(err);
+        setLoginError("Ocorreu um erro ao entrar. Tente novamente.");
+      }finally{
+        btn.disabled=false;
+        btn.textContent="Entrar";
+      }
+    });
+
+    $("forgotPasswordButton")?.addEventListener("click",async()=>{
+      const email=$("loginEmail")?.value.trim().toLowerCase();
+
+      setLoginError("");
+      setLoginSuccess("");
+
+      if(!email){
+        setLoginError("Digite seu e-mail acima antes de clicar em “Esqueci minha senha”.");
+        $("loginEmail")?.focus();
+        return;
+      }
+
+      const button=$("forgotPasswordButton");
+      button.disabled=true;
+      button.textContent="Enviando...";
+
+      try{
+        const redirectTo=window.location.origin + window.location.pathname;
+
+        const {error}=await window.sb.auth.resetPasswordForEmail(email,{redirectTo});
+
+        if(error){
+          console.error(error);
+          setLoginError("Não foi possível enviar o e-mail de recuperação. Confira o endereço e tente novamente.");
+          return;
+        }
+
+        setLoginSuccess("Enviamos um link de recuperação para seu e-mail. Abra o e-mail e clique no link para criar uma nova senha.");
+      }catch(err){
+        console.error(err);
+        setLoginError("Erro ao solicitar recuperação de senha.");
+      }finally{
+        button.disabled=false;
+        button.textContent="Esqueci minha senha";
+      }
+    });
+
+    $("recoveryForm")?.addEventListener("submit",async e=>{
+      e.preventDefault();
+
+      const password=$("newPassword")?.value||"";
+      const confirm=$("confirmNewPassword")?.value||"";
+      const btn=$("recoveryButton");
+      const errorEl=$("recoveryError");
+      const successEl=$("recoverySuccess");
+
+      const setError=msg=>{
+        errorEl.textContent=msg;
+        errorEl.classList.toggle("hidden",!msg);
+      };
+      const setSuccess=msg=>{
+        successEl.textContent=msg;
+        successEl.classList.toggle("hidden",!msg);
+      };
+
+      setError("");
+      setSuccess("");
+
+      if(password.length<6){
+        setError("A nova senha precisa ter pelo menos 6 caracteres.");
+        return;
+      }
+
+      if(password!==confirm){
+        setError("As duas senhas não são iguais.");
+        return;
+      }
+
+      btn.disabled=true;
+      btn.textContent="Salvando...";
+
+      try{
+        const {error}=await window.sb.auth.updateUser({password});
+
+        if(error){
+          setError("Não foi possível alterar a senha. Abra novamente o link de recuperação recebido por e-mail.");
+          return;
+        }
+
+        setSuccess("Senha alterada com sucesso. Você já pode voltar ao login.");
+        history.replaceState(null,"",window.location.pathname);
+      }catch(err){
+        console.error(err);
+        setError("Erro ao alterar a senha.");
+      }finally{
+        btn.disabled=false;
+        btn.textContent="Salvar nova senha";
+      }
+    });
+
+    $("backToLoginButton")?.addEventListener("click",async()=>{
+      await window.sb.auth.signOut();
+      history.replaceState(null,"",window.location.pathname);
+      showLogin();
+      $("loginPassword").value="";
+      $("loginEmail")?.focus();
     });
 
     $("btnLogout")?.addEventListener("click",async()=>{
       await window.sb.auth.signOut();
+      window.currentProfile=null;
       location.reload();
     });
-  }
-
-  function esc(s){
-    return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
   }
 
   window.loadUsers=async function(){
