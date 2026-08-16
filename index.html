@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Aventura Turismo | Capitão Gancho</title>
-  <link rel="stylesheet" href="./styles.css?v=roles13" />
+  <link rel="stylesheet" href="./styles.css?v=profiles14" />
   <style>
     #appShell{display:none!important}
     #loginScreen{display:grid!important}
@@ -134,7 +134,7 @@
 
         <div id="createUserPanel" class="panel create-user-panel hidden">
           <div class="create-user-head">
-            <div><strong>Novo usuário</strong><span>Defina os dados de acesso e as áreas liberadas.</span></div>
+            <div><strong>Novo usuário</strong><span>Defina os dados de acesso e escolha o perfil.</span></div>
             <button class="icon-btn" onclick="toggleCreateUser(false)">×</button>
           </div>
           <form id="createUserForm" onsubmit="createSystemUser(event)">
@@ -143,17 +143,14 @@
               <label><span>E-mail</span><input id="newUserEmail" type="email" required autocomplete="off" placeholder="usuario@email.com"></label>
               <label><span>Senha inicial</span><input id="newUserPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
             </div>
-            <div class="new-user-permissions">
-              <strong>Permissões iniciais</strong>
-              <div class="permissions-grid">
-                <label class="permission-switch"><input type="checkbox" data-new-perm="dashboard" checked><span>Painel</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="comandas"><span>Comandas</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="produtos"><span>Produtos</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="estoque"><span>Estoque</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="caixa"><span>Caixa</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="relatorios"><span>Relatórios</span></label>
-                <label class="permission-switch"><input type="checkbox" data-new-perm="configuracoes"><span>Configurações</span></label>
-              </div>
+            <div class="profile-select-box">
+              <label><span>Perfil do usuário</span>
+                <select id="newUserRole">
+                  <option value="GARCOM">Garçom — comandas e pedidos</option>
+                  <option value="GERENTE">Gerente — comandas, pedidos, Caixa e Estoque</option>
+                  <option value="GESTOR">Gestor — acesso operacional completo</option>
+                </select>
+              </label>
             </div>
             <div class="form-actions">
               <button type="button" class="ghost" onclick="toggleCreateUser(false)">Cancelar</button>
@@ -164,7 +161,7 @@
         </div>
 
         <div class="panel">
-          <div class="access-help"><strong>Controle de acesso</strong><span>Os usuários criados aqui já poderão entrar com e-mail e senha. O MASTER pode bloquear o acesso ou alterar cada permissão.</span></div>
+          <div class="access-help"><strong>Controle de acesso</strong><span>Os usuários criados aqui já poderão entrar com e-mail e senha. O MASTER escolhe entre Garçom, Gerente e Gestor.</span></div>
           <div id="usersAccessList" class="users-access-list"><small>Carregando...</small></div>
         </div>
       </section>
@@ -180,7 +177,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./supabase-config.js"></script>
-  <script src="./auth.js?v=roles13"></script>
-  <script src="./app.js?v=roles13"></script>
+  <script src="./auth.js?v=profiles14"></script>
+  <script src="./app.js?v=profiles14"></script>
 </body>
 </html>

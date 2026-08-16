@@ -53,7 +53,12 @@ let cart=[];
 let lastSentOrderId=null;
 let orderReviewLocked=false;
 
-function canManageComanda(){return ['MASTER','GESTOR'].includes(window.currentProfile?.role);}
+function isMaster(){return window.currentProfile?.role==='MASTER';}
+function isGestor(){return ['MASTER','GESTOR'].includes(window.currentProfile?.role);}
+function isGerente(){return ['MASTER','GESTOR','GERENTE'].includes(window.currentProfile?.role);}
+function isGarcom(){return ['MASTER','GESTOR','GERENTE','GARCOM'].includes(window.currentProfile?.role);}
+function canManageComanda(){return ['MASTER','GESTOR','GERENTE'].includes(window.currentProfile?.role);}
+function canCloseComanda(){return ['MASTER','GESTOR','GERENTE','GARCOM'].includes(window.currentProfile?.role);}
 
 let cloudReady=false;
 let savingCloud=false;
@@ -375,7 +380,7 @@ function renderTabModal(){
 
         <div class="comanda-secondary-actions">
           ${manager?'<button class="ghost" onclick="openAllOrdersManager()">Visualizar todos os pedidos</button>':''}
-          ${window.hasPermission&&window.hasPermission('caixa')
+          ${canCloseComanda()
             ? '<button class="ghost" onclick="openCheckout()">Fechar comanda</button>'
             : ''}
         </div>
@@ -815,8 +820,8 @@ function showPrintPreview(order){
 }
 
 window.openCheckout=function(){
-  if(window.hasPermission && !window.hasPermission('caixa')){
-    alert('Somente usuários com acesso ao Caixa podem fechar comandas.');
+  if(!canCloseComanda()){
+    alert('Seu perfil não pode fechar comandas.');
     return;
   }
 
@@ -900,8 +905,8 @@ window.openCheckout=function(){
 };
 
 window.printCustomerReceipt=function(){
-  if(window.hasPermission && !window.hasPermission('caixa')){
-    alert('Sem permissão para acessar o Caixa.');
+  if(!canCloseComanda()){
+    alert('Seu perfil não pode acessar o fechamento desta comanda.');
     return;
   }
 
@@ -958,8 +963,8 @@ window.printCustomerReceipt=function(){
 };
 
 window.confirmCloseTab=function(){
-  if(window.hasPermission && !window.hasPermission('caixa')){
-    alert('Somente usuários com acesso ao Caixa podem fechar comandas.');
+  if(!canCloseComanda()){
+    alert('Seu perfil não pode fechar comandas.');
     return;
   }
 
@@ -999,7 +1004,8 @@ window.confirmCloseTab=function(){
   save();
   currentTabId=null;
   closeModal();
-  showView('caixa');
+  if(isGerente()) showView('caixa');
+  else showView('comandas');
 };
 
 window.openProductModal=function(){
@@ -1030,6 +1036,87 @@ window.saveSettings=function(){
 
 window.testPrinter=sector=>alert(`Impressão física desativada por enquanto. Os pedidos de ${sector} continuarão sendo separados e exibidos na prévia.`);
 
+
+function getTodayOperationalData(){
+  const today=new Date().toLocaleDateString('en-CA');
+  const todaysTabs=state.tabs.filter(t=>new Date(t.createdAt).toLocaleDateString('en-CA')===today);
+  const tabIds=new Set(todaysTabs.map(t=>t.id));
+  const todaysOrders=state.orders.filter(o=>tabIds.has(o.tabId)&&o.status!=='CANCELADO');
+  const todaysPayments=state.payments.filter(p=>tabIds.has(p.tabId));
+  const people=todaysTabs.reduce((s,t)=>s+Number(t.people||0),0);
+  const open=todaysTabs.filter(t=>t.status==='ABERTA');
+  const closed=todaysTabs.filter(t=>t.status==='FECHADA');
+  const automaticOrders=todaysOrders.filter(o=>o.automatic);
+  const couvert=automaticOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.productId==='taxa-couvert-artistico').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+  const sustentabilidade=automaticOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.productId==='taxa-sustentabilidade').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+  const productOrders=todaysOrders.filter(o=>!o.automatic);
+  const productSales=productOrders.reduce((s,o)=>s+Number(o.total||0),0);
+  const barSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector==='BAR').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+  const kitchenSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>i.sector==='COZINHA').reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+  const extrasSales=productOrders.reduce((sum,o)=>sum+o.items.filter(i=>!['BAR','COZINHA'].includes(i.sector)).reduce((s,i)=>s+Number(i.qty||0)*Number(i.price||0),0),0);
+  const serviceFee=closed.reduce((s,t)=>s+Number(t.serviceFee||0),0);
+  const totalReceived=todaysPayments.reduce((s,p)=>s+Number(p.amount||0),0);
+  const byMethod=m=>todaysPayments.filter(p=>p.method===m).reduce((s,p)=>s+Number(p.amount||0),0);
+  const soldMap={};
+  for(const o of productOrders){
+    for(const i of o.items){
+      const k=i.productId||i.name;
+      if(!soldMap[k]) soldMap[k]={name:i.name,sector:i.sector,qty:0,total:0};
+      soldMap[k].qty+=Number(i.qty||0);
+      soldMap[k].total+=Number(i.qty||0)*Number(i.price||0);
+    }
+  }
+  const products=Object.values(soldMap).sort((a,b)=>b.qty-a.qty);
+  const durations=closed.filter(t=>t.closedAt).map(t=>(new Date(t.closedAt)-new Date(t.createdAt))/60000).filter(n=>Number.isFinite(n)&&n>=0);
+  const avgDuration=durations.length?durations.reduce((a,b)=>a+b,0)/durations.length:0;
+  return {
+    today,todaysTabs,people,open,closed,couvert,sustentabilidade,productSales,barSales,kitchenSales,extrasSales,serviceFee,totalReceived,
+    pix:byMethod('PIX'),cash:byMethod('DINHEIRO'),card:byMethod('CARTAO'),products,avgDuration,
+    avgTicket:closed.length?totalReceived/closed.length:0,avgPerPerson:people?totalReceived/people:0
+  };
+}
+
+window.downloadDailyReport=function(){
+  if(!isGestor()) return alert('Somente MASTER ou GESTOR podem baixar o relatório completo do dia.');
+  const d=getTodayOperationalData();
+  const rows=[
+    ['AVENTURA TURISMO - RELATÓRIO DO DIA'],
+    ['Data',new Date().toLocaleDateString('pt-BR')],
+    ['Barco',state.settings.boat],[],
+    ['RESUMO OPERACIONAL'],
+    ['Pessoas registradas',d.people],
+    ['Comandas abertas',d.open.length],
+    ['Comandas fechadas',d.closed.length],
+    ['Tempo médio de comanda (min)',d.avgDuration.toFixed(1)],
+    ['Ticket médio por comanda',d.avgTicket.toFixed(2)],
+    ['Média por pessoa',d.avgPerPerson.toFixed(2)],[],
+    ['VENDAS'],
+    ['Produtos/consumos',d.productSales.toFixed(2)],
+    ['BAR',d.barSales.toFixed(2)],
+    ['COZINHA',d.kitchenSales.toFixed(2)],
+    ['EXTRAS',d.extrasSales.toFixed(2)],
+    ['Couvert artístico',d.couvert.toFixed(2)],
+    ['Taxa de sustentabilidade',d.sustentabilidade.toFixed(2)],
+    ['Taxa de serviço 10%',d.serviceFee.toFixed(2)],
+    ['TOTAL RECEBIDO',d.totalReceived.toFixed(2)],[],
+    ['FORMAS DE PAGAMENTO'],
+    ['PIX',d.pix.toFixed(2)],['Dinheiro',d.cash.toFixed(2)],['Cartão',d.card.toFixed(2)],[],
+    ['PRODUTOS VENDIDOS'],['Produto','Setor','Quantidade','Total']
+  ];
+  d.products.forEach(p=>rows.push([p.name,p.sector,p.qty,p.total.toFixed(2)]));
+  rows.push([],['COMANDAS'],['Comanda','Responsável','Pessoas','Abertura','Fechamento','Status','Total']);
+  d.todaysTabs.slice().sort((a,b)=>Number(a.number)-Number(b.number)).forEach(t=>rows.push([
+    t.number,t.customer||'',t.people||0,
+    new Date(t.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    t.closedAt?new Date(t.closedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'',
+    t.status,Number(t.total||0).toFixed(2)
+  ]));
+  const csv=rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\r\n');
+  const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`aventura-turismo-relatorio-${d.today}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+};
+
 function renderAll(){
   if(!document.getElementById('todayLabel'))return;
   document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -1050,7 +1137,26 @@ function renderAll(){
   const byMethod=m=>state.payments.filter(p=>p.method===m).reduce((s,p)=>s+p.amount,0);
   document.getElementById('cashTotal').textContent=money(byMethod('DINHEIRO'));document.getElementById('pixTotal').textContent=money(byMethod('PIX'));document.getElementById('cardTotal').textContent=money(byMethod('CARTAO'));document.getElementById('receivedTotal').textContent=money(state.payments.reduce((s,p)=>s+p.amount,0));
   document.getElementById('closedTabs').innerHTML=closed.length?closed.map(t=>`<div class="list-item"><div><strong>Comanda ${t.number}</strong><br><small>${t.customer||'Sem responsável'} • ${t.people||1} pessoa(s)</small></div><strong>${money(t.total)}</strong></div>`).join(''):'<small>Nenhuma comanda fechada.</small>';
-  document.getElementById('dailyReport').innerHTML=`<div class="report-row"><span>Comandas abertas</span><strong>${open.length}</strong></div><div class="report-row"><span>Comandas fechadas</span><strong>${closed.length}</strong></div><div class="report-row"><span>Pedidos</span><strong>${state.orders.length}</strong></div><div class="report-row"><span>Vendas BAR</span><strong>${money(sectorSales('BAR'))}</strong></div><div class="report-row"><span>Vendas COZINHA</span><strong>${money(sectorSales('COZINHA'))}</strong></div><div class="report-row"><span>Total recebido</span><strong>${money(state.payments.reduce((s,p)=>s+p.amount,0))}</strong></div>`;
+  const daily=getTodayOperationalData();
+  document.getElementById('dailyReport').innerHTML=`
+    <div class="daily-report-toolbar">
+      <div><strong>Resumo operacional de hoje</strong><small>${new Date().toLocaleDateString('pt-BR')}</small></div>
+      ${isGestor()?'<button class="primary" onclick="downloadDailyReport()">Baixar relatório do dia</button>':''}
+    </div>
+    <div class="report-row"><span>Pessoas registradas</span><strong>${daily.people}</strong></div>
+    <div class="report-row"><span>Comandas abertas</span><strong>${daily.open.length}</strong></div>
+    <div class="report-row"><span>Comandas fechadas</span><strong>${daily.closed.length}</strong></div>
+    <div class="report-row"><span>Tempo médio das comandas</span><strong>${daily.avgDuration.toFixed(0)} min</strong></div>
+    <div class="report-row"><span>Vendas BAR</span><strong>${money(daily.barSales)}</strong></div>
+    <div class="report-row"><span>Vendas COZINHA</span><strong>${money(daily.kitchenSales)}</strong></div>
+    <div class="report-row"><span>Couvert artístico</span><strong>${money(daily.couvert)}</strong></div>
+    <div class="report-row"><span>Sustentabilidade</span><strong>${money(daily.sustentabilidade)}</strong></div>
+    <div class="report-row"><span>Taxa de serviço</span><strong>${money(daily.serviceFee)}</strong></div>
+    <div class="report-row"><span>PIX</span><strong>${money(daily.pix)}</strong></div>
+    <div class="report-row"><span>Dinheiro</span><strong>${money(daily.cash)}</strong></div>
+    <div class="report-row"><span>Cartão</span><strong>${money(daily.card)}</strong></div>
+    <div class="report-row"><span>Ticket médio</span><strong>${money(daily.avgTicket)}</strong></div>
+    <div class="report-row"><span>Total recebido</span><strong>${money(daily.totalReceived)}</strong></div>`;
   document.getElementById('companyName').value=state.settings.company;document.getElementById('boatName').value=state.settings.boat;document.getElementById('printBridgeUrl').value=state.settings.printBridge;
 }
 

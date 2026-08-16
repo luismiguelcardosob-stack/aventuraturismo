@@ -29,8 +29,11 @@
 
   function allowed(p,key){
     if(!p || p.active===false) return false;
-    if(p.role==="MASTER") return true;
-    return Boolean(p.permissions?.[key]);
+    const role=p.role||'GARCOM';
+    if(role==='MASTER'||role==='GESTOR') return true;
+    if(role==='GERENTE') return ['dashboard','comandas','estoque','caixa','relatorios'].includes(key);
+    if(role==='GARCOM'||role==='USER') return ['comandas'].includes(key);
+    return false;
   }
 
   window.hasPermission = key => allowed(window.currentProfile,key);
@@ -116,30 +119,32 @@
 
     if(error){box.innerHTML=`<small>Erro: ${esc(error.message)}</small>`;return;}
 
-    const labels={dashboard:"Painel",comandas:"Comandas",produtos:"Produtos",estoque:"Estoque",caixa:"Caixa",relatorios:"Relatórios",configuracoes:"Configurações"};
+    const roleLabels={MASTER:"MASTER",GESTOR:"GESTOR",GERENTE:"GERENTE",GARCOM:"GARÇOM",USER:"GARÇOM"};
 
     box.innerHTML=data.map(u=>{
       const master=u.role==="MASTER";
-      const gestor=u.role==="GESTOR";
-      const perms=master?ALL:(u.permissions||{});
+      const normalizedRole=u.role==="USER"?"GARCOM":u.role;
       return `<article class="user-access-card">
         <div class="user-access-head">
           <div><strong>${esc(u.full_name||"Usuário")}</strong><small>${esc(u.email||"")}</small></div>
           <div class="user-access-actions">
-            <span class="pill">${master?"MASTER":gestor?"GESTOR":"USUÁRIO"}</span>
+            <span class="pill">${roleLabels[normalizedRole]||normalizedRole}</span>
             ${master?"":`<select class="role-select" onchange="setUserRole('${u.id}',this.value)">
-              <option value="USER" ${u.role==="USER"?"selected":""}>Usuário</option>
-              <option value="GESTOR" ${u.role==="GESTOR"?"selected":""}>Gestor</option>
-            </select>`}
-            ${master?"":`<label class="active-toggle"><input type="checkbox" ${u.active?"checked":""} onchange="setUserActive('${u.id}',this.checked)"><span>${u.active?"Ativo":"Bloqueado"}</span></label>`}
+              <option value="GARCOM" ${normalizedRole==="GARCOM"?"selected":""}>Garçom</option>
+              <option value="GERENTE" ${normalizedRole==="GERENTE"?"selected":""}>Gerente</option>
+              <option value="GESTOR" ${normalizedRole==="GESTOR"?"selected":""}>Gestor</option>
+            </select>
+            <label class="active-toggle"><input type="checkbox" ${u.active?"checked":""} onchange="setUserActive('${u.id}',this.checked)"><span>${u.active?"Ativo":"Bloqueado"}</span></label>`}
           </div>
         </div>
-        <div class="permissions-grid">
-          ${Object.entries(labels).map(([k,v])=>`<label class="permission-switch ${master?"disabled-switch":""}"><input type="checkbox" ${perms[k]?"checked":""} ${master?"disabled":""} onchange="setUserPermission('${u.id}','${k}',this.checked)"><span>${v}</span></label>`).join("")}
-        </div>
+        <div class="profile-access-summary">${
+          normalizedRole==="GARCOM"?"Comandas e pedidos. Pode abrir e fechar comanda.":
+          normalizedRole==="GERENTE"?"Comandas, pedidos, Caixa e Estoque.":
+          normalizedRole==="GESTOR"?"Acesso operacional completo.":
+          "Administrador MASTER do sistema."
+        }</div>
       </article>`;
     }).join("");
-  };
 
   window.setUserPermission=async function(uid,key,value){
     if(window.currentProfile?.role!=="MASTER") return;
@@ -189,17 +194,14 @@
       return;
     }
 
-    const permissions={};
-    document.querySelectorAll("[data-new-perm]").forEach(el=>{
-      permissions[el.dataset.newPerm]=el.checked;
-    });
+    const role=$("newUserRole")?.value||"GARCOM";
 
     if(btn){btn.disabled=true;btn.textContent="Criando...";}
     if(msg) msg.textContent="Criando usuário...";
 
     try{
       const {data,error}=await window.sb.functions.invoke("admin-create-user",{
-        body:{full_name:name,email,password,permissions}
+        body:{full_name:name,email,password,role}
       });
       if(error) throw error;
       if(!data?.ok) throw new Error(data?.error || "Não foi possível criar o usuário.");
@@ -227,7 +229,7 @@
 
   window.setUserRole=async function(uid,role){
     if(window.currentProfile?.role!=="MASTER") return;
-    if(!["USER","GESTOR"].includes(role)) return;
+    if(!["GARCOM","GERENTE","GESTOR"].includes(role)) return;
 
     const {data}=await window.sb.from("user_profiles").select("role").eq("id",uid).single();
     if(data?.role==="MASTER") return;

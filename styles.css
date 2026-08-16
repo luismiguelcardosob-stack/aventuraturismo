@@ -602,3 +602,11 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
 @media(max-width:700px){
   .manager-order-item{align-items:flex-start;flex-direction:column}
 }
+
+.profile-select-box{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:13px;background:#faf9fc}
+.profile-select-box label{display:grid;gap:7px;font-size:13px;font-weight:800}
+.profile-select-box select{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.profile-access-summary{padding:11px 12px;background:#f7f5fb;border-radius:10px;color:var(--muted);font-size:12px}
+.daily-report-toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center;padding-bottom:14px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.daily-report-toolbar>div{display:grid;gap:3px}.daily-report-toolbar small{color:var(--muted)}
+@media(max-width:600px){.daily-report-toolbar{align-items:stretch;flex-direction:column}}
