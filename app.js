@@ -275,32 +275,239 @@ window.openTab=function(tabId){
 
 function renderTabModal(){
   const tab=state.tabs.find(t=>t.id===currentTabId);
+  if(!tab) return;
+
   const existing=state.orders.filter(o=>o.tabId===currentTabId&&o.status!=='CANCELADO');
-  const historical=existing.reduce((s,o)=>s+o.total,0);
-  const cartTotal=cart.reduce((s,l)=>s+l.qty*l.price,0);
+  const historical=existing.reduce((s,o)=>s+Number(o.total||0),0);
+
   const categoryOrder=['ALMOÇO','PORÇÕES','BEBIDAS','DRINKS','EXTRAS'];
   const productButtons=categoryOrder.map(category=>{
     const products=state.products.filter(p=>p.category===category);
     if(!products.length)return '';
-    return `<div class="menu-category">
-      <div class="menu-category-title">${category}</div>
-      <div class="product-picker">
-        ${products.map(p=>`<button class="product-btn" onclick="addProduct('${p.id}')">
-          <strong>${p.name}</strong>
-          <small>${p.sector==='EXTRAS'?'SEM IMPRESSÃO':p.sector} • ${money(p.price)}</small>
-          ${p.description?`<em class="product-description">${p.description}</em>`:''}
-        </button>`).join('')}
+    return `<section class="order-menu-category">
+      <div class="order-menu-title">${category}</div>
+      <div class="order-menu-grid">
+        ${products.map(p=>`
+          <button class="order-product-btn" onclick="addProductStable('${p.id}')">
+            <strong>${p.name}</strong>
+            ${p.description?`<em>${p.description}</em>`:''}
+            <span>${money(p.price)}</span>
+          </button>`).join('')}
       </div>
-    </div>`;
+    </section>`;
   }).join('');
-  const cartLines=cart.length?cart.map((l,i)=>`<div class="order-line"><span>${l.qty}x ${l.name}</span><strong>${money(l.qty*l.price)}</strong><button class="danger" onclick="removeCart(${i})">×</button></div>`).join(''):'<small>Nenhum item novo.</small>';
-  const history=existing.length?existing.map(o=>`<div class="list-item"><div><strong>${new Date(o.createdAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong><br><small>${o.items.map(i=>`${i.qty}x ${i.name}`).join(', ')}</small></div><strong>${money(o.total)}</strong></div>`).join(''):'<small>Sem pedidos enviados.</small>';
-  openModal(`Comanda ${tab.number}`,`<div class="panel-head"><div><strong>${tab.customer||'Sem responsável'}</strong><br><small>${tab.people||1} pessoa(s) • Total já enviado: ${money(historical)}</small></div><span class="pill">${tab.status}</span></div><h4>Novo pedido</h4><div class="menu-catalog">${productButtons}</div><div class="order-lines">${cartLines}</div><div class="checkout"><strong>Novo pedido: ${money(cartTotal)}</strong><button class="primary" onclick="sendOrder()" ${cart.length?'':'disabled'}>Enviar pedido</button></div><h4>Pedidos enviados</h4><div class="list">${history}</div><div class="checkout">
-      ${window.hasPermission && window.hasPermission('caixa')
-        ? '<button class="primary" onclick="openCheckout()">Fechar comanda</button>'
-        : '<span class="checkout-warning">Somente usuários com acesso ao Caixa podem fechar esta comanda.</span>'}
-    </div>`);
+
+  openModal(`Comanda ${tab.number}`,`
+    <div class="comanda-order-layout">
+      <div class="comanda-order-main">
+        <div class="comanda-order-header">
+          <div>
+            <span class="eyebrow">COMANDA ${tab.number}</span>
+            <h3>${tab.customer||'Sem responsável'}</h3>
+            <p>${tab.people||1} pessoa(s) • Consumo lançado: ${money(historical)}</p>
+          </div>
+          <span class="pill">${tab.status}</span>
+        </div>
+
+        <div class="order-menu-scroll">
+          ${productButtons}
+        </div>
+      </div>
+
+      <aside class="current-order-panel">
+        <div class="current-order-head">
+          <div>
+            <span class="eyebrow">PEDIDO ATUAL</span>
+            <h3>Itens selecionados</h3>
+          </div>
+        </div>
+
+        <div id="stableCartLines" class="stable-cart-lines"></div>
+
+        <div class="stable-cart-total">
+          <span>Total deste pedido</span>
+          <strong id="stableCartTotal">${money(0)}</strong>
+        </div>
+
+        <button id="stableSendButton" class="primary stable-send-btn" onclick="sendOrderStable()" disabled>
+          Enviar pedido
+        </button>
+
+        <div id="sentOrderArea" class="sent-order-area hidden"></div>
+
+        <div class="comanda-secondary-actions">
+          ${window.hasPermission&&window.hasPermission('caixa')
+            ? '<button class="ghost" onclick="openCheckout()">Fechar comanda</button>'
+            : '<span class="checkout-warning">Somente o Caixa pode fechar a comanda.</span>'}
+        </div>
+      </aside>
+    </div>
+  `);
+
+  updateStableCart();
 }
+
+
+window.addProductStable=function(pid){
+  const p=state.products.find(x=>x.id===pid);
+  if(!p) return;
+
+  const line=cart.find(x=>x.productId===pid);
+  if(line) line.qty++;
+  else cart.push({
+    productId:p.id,
+    name:p.name,
+    category:p.category,
+    sector:p.sector,
+    price:p.price,
+    qty:1
+  });
+
+  updateStableCart();
+};
+
+window.changeStableQty=function(index,delta){
+  const line=cart[index];
+  if(!line) return;
+  line.qty+=delta;
+  if(line.qty<=0) cart.splice(index,1);
+  updateStableCart();
+};
+
+window.removeStableItem=function(index){
+  cart.splice(index,1);
+  updateStableCart();
+};
+
+function updateStableCart(){
+  const box=document.getElementById('stableCartLines');
+  const totalEl=document.getElementById('stableCartTotal');
+  const sendBtn=document.getElementById('stableSendButton');
+  if(!box||!totalEl||!sendBtn) return;
+
+  if(!cart.length){
+    box.innerHTML='<div class="empty-current-order">Clique nos produtos do cardápio para montar o pedido.</div>';
+  }else{
+    box.innerHTML=cart.map((l,i)=>`
+      <div class="stable-cart-item">
+        <div class="stable-cart-info">
+          <strong>${l.name}</strong>
+          <small>${l.sector==='EXTRAS'?'EXTRA':l.sector} • ${money(l.price)}</small>
+        </div>
+        <div class="stable-cart-controls">
+          <button onclick="changeStableQty(${i},-1)">−</button>
+          <b>${l.qty}</b>
+          <button onclick="changeStableQty(${i},1)">+</button>
+          <button class="remove-stable" onclick="removeStableItem(${i})">×</button>
+        </div>
+      </div>`).join('');
+  }
+
+  const total=cart.reduce((s,l)=>s+Number(l.qty||0)*Number(l.price||0),0);
+  totalEl.textContent=money(total);
+  sendBtn.disabled=!cart.length;
+}
+
+window.sendOrderStable=async function(){
+  if(!cart.length) return;
+
+  for(const line of cart){
+    const p=state.products.find(x=>x.id===line.productId);
+    if(p&&p.stock<line.qty) return alert(`Estoque insuficiente: ${p.name}`);
+  }
+
+  const order={
+    id:id(),
+    tabId:currentTabId,
+    items:structuredClone(cart),
+    total:cart.reduce((s,l)=>s+Number(l.qty||0)*Number(l.price||0),0),
+    createdAt:new Date().toISOString(),
+    status:'ENVIADO',
+    createdBy:window.currentProfile?.id||null,
+    createdByName:window.currentProfile?.full_name||'Usuário'
+  };
+
+  state.orders.push(order);
+
+  cart.forEach(line=>{
+    const p=state.products.find(x=>x.id===line.productId);
+    if(p) p.stock-=line.qty;
+  });
+
+  save();
+  cart=[];
+  updateStableCart();
+  showSentOrderInline(order);
+};
+
+function showSentOrderInline(order){
+  const area=document.getElementById('sentOrderArea');
+  if(!area) return;
+
+  const tab=state.tabs.find(t=>t.id===order.tabId);
+  const bar=order.items.filter(i=>i.sector==='BAR');
+  const cozinha=order.items.filter(i=>i.sector==='COZINHA');
+  const extras=order.items.filter(i=>!['BAR','COZINHA'].includes(i.sector));
+
+  area.classList.remove('hidden');
+  area.innerHTML=`
+    <div class="sent-order-success">
+      <strong>Pedido enviado.</strong>
+      <span>Confira os setores antes de imprimir.</span>
+    </div>
+
+    <div class="production-tabs inline-production-tabs">
+      <button class="production-tab active" data-sector="BAR" onclick="switchInlinePrintTab('BAR')">
+        BAR <span>${bar.reduce((s,i)=>s+Number(i.qty||0),0)}</span>
+      </button>
+      <button class="production-tab" data-sector="COZINHA" onclick="switchInlinePrintTab('COZINHA')">
+        COZINHA <span>${cozinha.reduce((s,i)=>s+Number(i.qty||0),0)}</span>
+      </button>
+    </div>
+
+    <div class="inline-production-panes">
+      <div class="inline-production-pane active" data-sector="BAR">
+        ${receiptHtml('BAR',bar,tab,order)}
+      </div>
+      <div class="inline-production-pane" data-sector="COZINHA">
+        ${receiptHtml('COZINHA',cozinha,tab,order)}
+      </div>
+    </div>
+
+    ${extras.length?`
+      <div class="non-production-items">
+        <strong>Sem impressão de produção</strong>
+        ${extras.map(i=>`<span>${i.qty}x ${i.name}</span>`).join('')}
+      </div>`:''}
+
+    <div class="inline-print-actions">
+      <button class="ghost" onclick="printSector('BAR')" ${bar.length?'':'disabled'}>Imprimir BAR</button>
+      <button class="ghost" onclick="printSector('COZINHA')" ${cozinha.length?'':'disabled'}>Imprimir COZINHA</button>
+      <button class="primary" onclick="printBothSectors()" ${bar.length||cozinha.length?'':'disabled'}>Imprimir os dois</button>
+    </div>
+
+    <button class="ghost new-order-same-tab" onclick="startAnotherOrder()">+ Novo pedido nesta comanda</button>
+  `;
+}
+
+window.switchInlinePrintTab=function(sector){
+  document.querySelectorAll('.inline-production-tabs .production-tab').forEach(b=>{
+    b.classList.toggle('active',b.dataset.sector===sector);
+  });
+  document.querySelectorAll('.inline-production-pane').forEach(p=>{
+    p.classList.toggle('active',p.dataset.sector===sector);
+  });
+};
+
+window.startAnotherOrder=function(){
+  const area=document.getElementById('sentOrderArea');
+  if(area){
+    area.classList.add('hidden');
+    area.innerHTML='';
+  }
+  const first=document.querySelector('.order-menu-scroll');
+  first?.scrollTo({top:0,behavior:'smooth'});
+};
 
 window.addProduct=function(pid){const p=state.products.find(x=>x.id===pid);if(!p)return;const line=cart.find(x=>x.productId===pid);if(line)line.qty++;else cart.push({productId:p.id,name:p.name,sector:p.sector,price:p.price,qty:1});renderTabModal();};
 window.removeCart=i=>{cart.splice(i,1);renderTabModal();};
