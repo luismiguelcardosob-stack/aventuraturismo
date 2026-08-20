@@ -1,6 +1,6 @@
 {
   "version": "v.90O",
-  "notes": "Correção de leitura nos quadros claros.",
+  "notes": "Correções visuais: texto preto em quadros claros e botão de atualização restaurado.",
   "files": [
     {
       "path": "public/app.js",
