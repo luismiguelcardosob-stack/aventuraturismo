@@ -1,6 +1,6 @@
 {
-  "version": "v.90N",
-  "notes": "Novo visual marítimo Capitão Gancho.",
+  "version": "v.90O",
+  "notes": "Correção de leitura nos quadros claros.",
   "files": [
     {
       "path": "public/app.js",
