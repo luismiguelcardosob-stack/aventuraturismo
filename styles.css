@@ -1646,3 +1646,33 @@ main{padding:28px;max-width:1400px;margin:auto}.view{display:none}.view.active{d
   .theme-pirata .topbar{padding:18px}
   .theme-pirata main{padding:16px}
 }
+/* =========================================================
+   CORREÇÃO DE TEXTO EM QUADROS BRANCOS
+   Mantém todo o tema marítimo/pirata
+   ========================================================= */
+
+/* Quadro branco de controle de acesso */
+.theme-pirata .access-help {
+  color: #111827 !important;
+}
+
+.theme-pirata .access-help strong,
+.theme-pirata .access-help span,
+.theme-pirata .access-help small,
+.theme-pirata .access-help p,
+.theme-pirata .access-help div {
+  color: #111827 !important;
+}
+
+/* Outros quadros claros eventualmente usados em usuários/acessos */
+.theme-pirata .profile-access-summary,
+.theme-pirata .role-access-preview,
+.theme-pirata .access-detail-block {
+  color: #111827 !important;
+}
+
+.theme-pirata .profile-access-summary *,
+.theme-pirata .role-access-preview *,
+.theme-pirata .access-detail-block * {
+  color: #111827 !important;
+}
